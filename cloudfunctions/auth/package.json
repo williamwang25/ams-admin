@@ -1,0 +1,7 @@
+{
+  "name": "auth",
+  "version": "1.0.0",
+  "description": "AMS 鉴权云函数（精简版：固定账号 / 固定 token，不查数据库）",
+  "main": "index.js",
+  "dependencies": {}
+}

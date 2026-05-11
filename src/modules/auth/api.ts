@@ -3,7 +3,9 @@ import type { AdminProfile } from "@/utils/token";
 
 /**
  * 管理端鉴权 API（云函数 `auth`）。
- * 详见 docs/04-api-spec.md 4.2.1。
+ *
+ * 当前精简实现：固定账号 + 固定 token，云函数只暴露 `adminLogin` 一个 action。
+ * 接入多管理员 / 教师端时再补 `getProfile` / `changePassword` 等接口。
  */
 
 export interface AdminLoginInput {
@@ -18,9 +20,3 @@ export interface AdminLoginResult {
 
 export const adminLogin = (input: AdminLoginInput) =>
   callFunction<AdminLoginResult>({ name: "auth", action: "adminLogin", data: input });
-
-export const getProfile = () =>
-  callFunction<AdminProfile>({ name: "auth", action: "getProfile" });
-
-export const changePassword = (input: { old: string; new: string }) =>
-  callFunction<{ ok: true }>({ name: "auth", action: "changePassword", data: input });

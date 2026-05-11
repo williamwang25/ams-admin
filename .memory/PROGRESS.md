@@ -23,28 +23,31 @@
 - 完成 12 项关键需求决策（认证、数据模型、范围、审批、签名、编号、看板、借物车、审计、模块拆分、读写路径、初始化）。
 - 产出 `docs/` 需求文档 12 份（README + 01–11 章节），覆盖架构、数据模型、API 契约、双端功能、流程、UI、开发约定、部署、开放问题。
 - 建立根级 agent 入口：`AGENTS.md`、`.windsurf/rules/project.md`、`.codex/config.toml`、根 `README.md`，统一指向 `docs/` 与 `.memory/`。
+- 管理端骨架完成：DaisyUI `ams` 主题（主色 `#0096C2`、辅色 `#006B8F`）；9 个模块目录（auth / dashboard / asset / borrow / large-asset / notice / user / report / share），每模块 `routes.ts` + 占位页面；全局布局 `AppLayout` / `AppSidebar` / `AppTopbar`；Pinia auth store；hash 路由 + 守卫（未登录跳 `/login`、`/admins` 仅超管）；`@` 路径别名；`pnpm typecheck` + `pnpm build` 双绿。
+- 前端工具就绪：`utils/cloudbase.ts`（SDK 单例 + `db()`）、`utils/http.ts`（`callFunction` 统一封装，自动注入 token，非 0 code 抛 `CloudFunctionError`）、`utils/token.ts`（localStorage 存取 + `AdminRole` 小写枚举对齐 docs/03 3.2）、`utils/status.ts`（资产 / 借用状态 label + badge 映射）、`utils/format.ts`（金额 / 日期）。
+- 云函数 M1 鉴权骨架（**精简版**）：`cloudfunctions/auth` 只剩 `adminLogin` 一个 action，比对 3 个环境变量 `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_TOKEN`，命中即返回常量 token + 固定 profile（`_id=env-admin`、`role=super_admin`）。**不查数据库 / 不哈希 / 不签 JWT / 无外部依赖**，整个函数 ~50 行。已删除：`cloudfunctions/init/` 整个目录、`cloudfunctions/auth/utils/{password,jwt,authenticate}.js`、`cloudfunctions/auth/actions/{getProfile,changePassword}.js`，模板 `cloudfunctions/hello/` 也已清理。`cloudbaserc.json` 修正 `functionRoot` 到 `./cloudfunctions`，仅登记 `auth`（`installDependency: false`）。前端 `src/modules/auth/api.ts` 同步只保留 `adminLogin`。`pnpm typecheck` + `node --check` 双绿。
 
 ## 进行中
 
-- 暂无。
+- M1 后端骨架剩余项（asset 云函数 + 集合索引 + 安全规则）。
 
 ## 待办
 
 ### M1 · 后端骨架
 
-- [ ] 新建 `cloudfunctions/init/` 实现 `initialize` / `seedAssets` 两个 action
-- [ ] 设置 CloudBase 环境变量：`INIT_SECRET`、`JWT_SECRET`、`DEFAULT_SUPER_ADMIN_USERNAME`、`DEFAULT_SUPER_ADMIN_PASSWORD`
-- [ ] 创建 `shared/types/` 与 `shared/enums.ts`，三端共享字段类型与枚举
-- [ ] 新建 `cloudfunctions/auth/`：`adminLogin`、`teacherLoginByPassword`、`teacherBindOpenid`、`teacherLoginByOpenid`、`getProfile`
-- [ ] 新建 `cloudfunctions/asset/`：`create`、`update`、`changeStatus`、`changeLocation`、`changeUser`、`getTimeline`、`getDetail`，含 `asset_no` 自动生成与 `ams_asset_log` 写入
-- [ ] CloudBase 控制台建集合 + 索引 + 安全规则（按 `docs/03-data-model.md` 与 `docs/04-api-spec.md`）
+- [ ] **运维**：部署 `auth` 云函数（`tcb fn deploy auth`）
+- [ ] **运维**：可选给 `auth` 配置 3 个环境变量 `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_TOKEN`（不配会回落到开发默认值并打 warn）
+- [ ] 接入多管理员 / 教师端时，重新引入 DB 查询 + JWT（恢复 `cloudfunctions/init/` 用于建集合 + 超管，参见已删的版本可从 git 历史恢复）
+- [ ] 新建 `cloudfunctions/asset/`：`create` / `update` / `changeStatus` / `changeLocation` / `changeUser` / `getTimeline` / `getDetail` / `list` / `detail`，含 `asset_no` 自动生成（用 `ams_seq` 顺序号）与 `ams_asset_log` 写入；列表 / 详情读取也走云函数（一期不放 SDK 直连）
+- [ ] **运维**：随 asset 模块上线，在 CloudBase 控制台按需手动建集合 `ams_asset` / `ams_asset_log` / `ams_seq`（不提前一次性建全部）。**安全规则一期不配置**——云函数是唯一读写入口，默认权限即可工作；后期若启用 SDK 直连再按 docs/04-api-spec.md 4.4 收口
+- [ ] （可选）创建 `shared/types/` 与 `shared/enums.ts`，三端共享字段类型与枚举
 
 ### M2 · 管理端 MVP
 
-- [ ] `admin/src/modules/auth/` 登录页 + 路由守卫 + token 存取
-- [ ] `admin/src/modules/dashboard/` 看板（5 卡 + 4 图 + 通知 + 总账 + 出入仓统计）
-- [ ] `admin/src/modules/asset/` 列表 + 入库表单 + 详情 + Timeline
-- [ ] DaisyUI 主题扩展 `primary=#0096C2` / `primary-focus=#006B8F`
+- [x] DaisyUI 主题扩展 `primary=#0096C2` / `primary-focus=#006B8F`
+- [x] `admin/src/modules/auth/` 登录页 + 路由守卫 + token 存取（待对接真实云函数）
+- [ ] `admin/src/modules/dashboard/` 看板真实数据接入（5 卡 + 4 图 + 通知 + 总账 + 出入仓统计）
+- [ ] `admin/src/modules/asset/` 列表 + 入库表单 + 详情 + Timeline 真实数据接入
 
 ### M3 · 教师端 MVP
 

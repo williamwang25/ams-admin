@@ -65,7 +65,7 @@ const auth = useAuthStore();
 const profile = computed(() => auth.profile);
 const roleLabel = computed(() => {
   if (!auth.profile) return "";
-  return auth.profile.role === "SUPER_ADMIN" ? "超级管理员" : "管理员";
+  return auth.profile.role === "super_admin" ? "超级管理员" : "管理员";
 });
 
 const visibleNav = computed(() => NAV.filter((n) => !n.superAdminOnly || auth.isSuperAdmin));

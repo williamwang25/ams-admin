@@ -20,7 +20,7 @@ export const useAuthStore = defineStore("auth", () => {
   const profile = ref<AdminProfile | null>(getProfile());
 
   const isLoggedIn = computed(() => Boolean(token.value));
-  const isSuperAdmin = computed(() => profile.value?.role === "SUPER_ADMIN");
+  const isSuperAdmin = computed(() => profile.value?.role === "super_admin");
 
   const setSession = (next: { token: string; profile: AdminProfile }) => {
     token.value = next.token;

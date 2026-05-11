@@ -9,13 +9,15 @@
 const TOKEN_KEY = "ams.admin.token";
 const PROFILE_KEY = "ams.admin.profile";
 
+export type AdminRole = "super_admin" | "admin";
+
 export interface AdminProfile {
   _id: string;
   username: string;
   name: string;
-  role: "SUPER_ADMIN" | "ADMIN";
-  dept_id?: string;
-  dept_name?: string;
+  /** 角色枚举（与 docs/03-data-model.md 3.2 对齐，小写下划线） */
+  role: AdminRole;
+  phone?: string;
 }
 
 export const getToken = (): string | null => {
