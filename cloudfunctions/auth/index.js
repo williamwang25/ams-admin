@@ -1,16 +1,22 @@
 /**
- * AMS auth 云函数入口（精简版：固定账号 / 固定 token，不依赖数据库与 JWT）。
+ * AMS auth 云函数入口。
+ *
+ * Action 清单（docs/04-api-spec.md 4.2.1）：
+ *   - adminLogin                管理员账密登录（硬编码账号，零环境变量）
+ *   - teacherLoginByPassword    教师账密首登 + 自动绑 openid（首次注入 5 条种子）
+ *   - teacherLoginByOpenid      教师 openid 免密登录
  *
  * 鉴权契约：
- *   - 登录走 adminLogin，比对环境变量 ADMIN_USERNAME / ADMIN_PASSWORD。
- *   - 成功返回 token = ADMIN_TOKEN（环境变量），失败返回 2003。
- *   - 其他云函数若需要校验 token，比对 event.auth.token 与 process.env.ADMIN_TOKEN 即可。
- *
- * 之后接入多管理员 / 教师端时，本函数可重新实现为 DB 查询 + JWT。
+ *   管理端：adminLogin 成功返回 token = ADMIN_PASSWORD；其他业务云函数比对
+ *          event.auth.token === ADMIN_PASSWORD 即视为管理员。
+ *   教师端：登录后**不发 token**；后续业务云函数靠 cloud.getWXContext().OPENID
+ *          反查 ams_teacher 识别身份（详见 docs/04-api-spec.md 4.6.1）。
  */
 
 const actions = {
   adminLogin: require('./actions/adminLogin'),
+  teacherLoginByPassword: require('./actions/teacherLoginByPassword'),
+  teacherLoginByOpenid: require('./actions/teacherLoginByOpenid'),
 };
 
 exports.main = async (event) => {

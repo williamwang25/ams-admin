@@ -15,11 +15,20 @@
       "memorySize": 128,
       "runtime": "Nodejs18.15",
       "handler": "index.main",
-      "installDependency": false,
+      "installDependency": true,
       "envVariables": {}
     },
     {
       "name": "asset",
+      "timeout": 20,
+      "memorySize": 256,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "installDependency": true,
+      "envVariables": {}
+    },
+    {
+      "name": "borrow",
       "timeout": 20,
       "memorySize": 256,
       "runtime": "Nodejs18.15",

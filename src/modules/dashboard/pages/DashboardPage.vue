@@ -4,7 +4,7 @@
       <div>
         <h1 class="text-xl font-semibold text-base-content">看板</h1>
         <p class="text-xs text-base-content/50 mt-1">
-          数据来自 <code>asset.summary</code> 一次性聚合查询
+          数据来自 <code>asset.summary</code> + <code>borrow.summary</code>
         </p>
       </div>
       <button class="btn btn-ghost btn-sm" :disabled="loading" @click="fetchAll">
@@ -102,15 +102,42 @@
       </div>
     </div>
 
-    <!-- 未上线模块占位 -->
+    <!-- 出入仓曲线（borrow.summary 7 天） + 通知占位 -->
     <div class="grid gap-6 lg:grid-cols-2">
+      <div class="rounded-lg border border-base-300 bg-base-100 p-5 shadow-card">
+        <div class="flex items-baseline justify-between mb-3">
+          <h2 class="text-base font-medium text-base-content">出入仓曲线（最近 7 天）</h2>
+          <span class="text-xs text-base-content/50">借出 / 归还</span>
+        </div>
+        <div v-if="loading && !borrowSummary" class="py-6 text-sm text-base-content/40 text-center">
+          <span class="loading loading-spinner loading-sm" />
+        </div>
+        <div v-else-if="!borrowSummary || borrowSummary.trend_7d.length === 0" class="py-6 text-sm text-base-content/40 text-center">
+          暂无数据
+        </div>
+        <ul v-else class="space-y-1.5">
+          <li v-for="row in trendRows" :key="row.date" class="text-xs">
+            <div class="flex items-baseline justify-between font-mono">
+              <span class="text-base-content/60">{{ row.date.slice(5) }}</span>
+              <span class="text-base-content/70">借 {{ row.borrow }} · 还 {{ row.return }}</span>
+            </div>
+            <div class="mt-1 flex h-2 gap-0.5 overflow-hidden rounded-full bg-base-200">
+              <div
+                class="h-full bg-primary"
+                :style="{ width: row.borrowPercent + '%' }"
+              />
+              <div
+                class="h-full bg-success"
+                :style="{ width: row.returnPercent + '%' }"
+              />
+            </div>
+          </li>
+        </ul>
+      </div>
+
       <div class="rounded-lg border border-dashed border-base-300 bg-base-100 p-5 shadow-card">
         <h2 class="text-base font-medium text-base-content/50">通知公告</h2>
         <p class="mt-2 text-sm text-base-content/40">通知模块上线后启用（ams_notice）</p>
-      </div>
-      <div class="rounded-lg border border-dashed border-base-300 bg-base-100 p-5 shadow-card">
-        <h2 class="text-base font-medium text-base-content/50">出入仓曲线</h2>
-        <p class="mt-2 text-sm text-base-content/40">借用模块上线后启用（ams_borrow_request）</p>
       </div>
     </div>
   </section>
@@ -129,6 +156,8 @@ import {
 } from "lucide-vue-next";
 import { getAssetSummary } from "@/modules/asset/api";
 import type { AssetSummary } from "@/modules/asset/types";
+import { getBorrowSummary } from "@/modules/borrow/api";
+import type { BorrowSummary } from "@/modules/borrow/types";
 import StatusTag from "@/components/StatusTag.vue";
 import { formatMoney } from "@/utils/format";
 import { CloudFunctionError } from "@/utils/http";
@@ -139,21 +168,34 @@ import {
 } from "@/utils/status";
 
 const summary = ref<AssetSummary | null>(null);
+const borrowSummary = ref<BorrowSummary | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
 const fetchAll = async () => {
   loading.value = true;
   error.value = null;
-  try {
-    summary.value = await getAssetSummary();
-  } catch (err) {
-    if (err instanceof CloudFunctionError) error.value = err.message;
-    else if (err instanceof Error) error.value = err.message;
-    else error.value = "加载失败";
-  } finally {
-    loading.value = false;
+  // 资产看板与借用看板并行拉取，单边失败不影响另一边的展示
+  const [assetRes, borrowRes] = await Promise.allSettled([
+    getAssetSummary(),
+    getBorrowSummary(),
+  ]);
+
+  if (assetRes.status === "fulfilled") {
+    summary.value = assetRes.value;
+  } else {
+    const e = assetRes.reason;
+    error.value = e instanceof CloudFunctionError ? e.message : e instanceof Error ? e.message : "资产看板加载失败";
   }
+  if (borrowRes.status === "fulfilled") {
+    borrowSummary.value = borrowRes.value;
+  } else {
+    const e = borrowRes.reason;
+    // borrow 失败只追加一条 message，不覆盖前一条
+    const msg = e instanceof CloudFunctionError ? e.message : e instanceof Error ? e.message : "借用看板加载失败";
+    error.value = error.value ? `${error.value}；${msg}` : msg;
+  }
+  loading.value = false;
 };
 
 const summaryCards = computed(() => {
@@ -200,13 +242,29 @@ const summaryCards = computed(() => {
     {
       key: "pending",
       label: "待审批",
-      hint: "借用模块上线后启用",
-      value: "--",
+      hint: "borrow.summary.pending_count",
+      value: String(borrowSummary.value?.pending_count ?? 0),
       icon: AlertTriangle,
-      to: { name: "asset-list" },
-      disabled: true,
+      to: { name: "borrow-list" },
+      disabled: false,
     },
   ];
+});
+
+/** 7 天曲线条状图：按当周内单日最大值归一化为百分比 */
+const trendRows = computed(() => {
+  const t = borrowSummary.value?.trend_7d ?? [];
+  let max = 1;
+  for (const r of t) {
+    if (r.borrow > max) max = r.borrow;
+    if (r.return > max) max = r.return;
+  }
+  return t.map((r) => ({
+    ...r,
+    // 单条占整行 50% 宽，分别填充借出 / 归还
+    borrowPercent: Math.max(0, Math.round((r.borrow / max) * 50)),
+    returnPercent: Math.max(0, Math.round((r.return / max) * 50)),
+  }));
 });
 
 const STATUS_ORDER: AssetBusinessStatus[] = [

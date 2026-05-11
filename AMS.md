@@ -3,6 +3,8 @@
 > **本文件是 AMS 项目在 `admin/` 工作区的精简入口**。
 > 当你单独打开 `admin/` 文件夹时，**先读本文，再读 `AGENTS.md` / `.windsurf/rules/`**。
 > 完整规则与文档以根仓库 `d:\Code\AMS\` 为准；本目录通过 junction 已挂载 `docs/`、`.memory/`、`data/`。
+>
+> **⚠️ 新会话第一步：读 `.memory/HANDOFF.md`**（接力上下文：当前里程碑、用户最新决策、下一步动作、避坑提示）。
 
 ## 项目身份
 

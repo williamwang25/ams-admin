@@ -9,13 +9,12 @@
  * 鉴权：所有 action 必须带 event.auth.token === utils/credentials.js 中
  *       的 ADMIN_PASSWORD，否则返回 2001（auth.js 中实现）。
  *
- * 集合自动化：main 入口在冷启动时调用 ensureCollections() 自动建
- *           ams_asset / ams_asset_log / ams_seq；已存在则跳过。
+ * 集合前置条件：环境中必须已存在 ams_asset / ams_asset_log / ams_seq 三个集合。
+ *           初次部署到新环境时请手动到 CloudBase 控制台建好，或参考
+ *           docs/10-init-and-deploy.md。
  *
  * 写操作均写入 ams_asset_log（log.js 中实现）。
  */
-
-const { ensureCollections } = require('./utils/db');
 
 const actions = {
   create: require('./actions/create'),
@@ -31,9 +30,6 @@ const actions = {
 
 exports.main = async (event) => {
   try {
-    // 冷启动时自动建集合，热实例下零开销
-    await ensureCollections();
-
     const action = event && event.action;
     if (!action || !actions[action]) {
       return { code: 1001, message: `unknown action: ${action || ''}`, data: null };

@@ -7,8 +7,11 @@
  *
  * 修改账号 / 密码：直接改 utils/credentials.js 然后重新部署即可。
  *
- * 错误码：
- *   1001 缺参 / 2003 账密错误
+ * 错误码:
+ *   1001 缺参 / 2001 账密错误
+ *
+ * 错误码 2001（未登录 / 凭证无效）是 docs/04-api-spec.md 4.6.3 公共错误码：
+ * 管理端 token 无效 / 账密错误统一用 2001；2003 留给「教师 openid 未绑定」。
  */
 
 const { ok, err } = require('../utils/response');
@@ -21,7 +24,7 @@ module.exports = async (event) => {
   if (!inputUser || !inputPwd) return err(1001, '请输入用户名和密码');
 
   if (inputUser !== ADMIN_USERNAME || inputPwd !== ADMIN_PASSWORD) {
-    return err(2003, '用户名或密码错误');
+    return err(2001, '用户名或密码错误');
   }
 
   return ok({

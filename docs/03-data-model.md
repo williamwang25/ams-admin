@@ -38,7 +38,7 @@
 |------|------|------|------|
 | `_id` | string | √ | |
 | `username` | string | √ | 教师登录账号，唯一 |
-| `password_hash` | string | √ | 首登核验密码 |
+| `password` | string | √ | 登录密码（**一期明文存**，便于测试；上线前必须改字段名为 `password_hash` 并改用 bcrypt） |
 | `name` | string | √ | 姓名 |
 | `phone` | string |   | 手机号（绑定时由微信组件回填） |
 | `department` | string |   | 所属部门 |
@@ -49,6 +49,18 @@
 | `updated_at` | timestamp | √ | |
 
 **索引**：`username` 唯一；`openid` 唯一（允许 null）。
+
+**测试种子数据（M2/M3 阶段）**：
+当 `auth.teacherLoginByPassword` 首次被调用且 `ams_teacher` 集合为空时，云函数用固定 `_id` `seed_t001` 至 `seed_t005` 通过 `db.collection('ams_teacher').doc(id).set(...)` 幂等注入 5 条测试教师：
+
+- `username` = `t001`..`t005`
+- `password` = `123456`（明文）
+- `name` = 任意 5 个常见姓名（如 张三 / 李四 / 王五 / 赵六 / 孙七）
+- `department` = `软件学院`（5 条统一）
+- `openid` = `null`（由首次账密登录自动绑定）
+- `phone` = `''`（一期无微信组件回填）
+
+具体常量在 `cloudfunctions/auth/utils/teacher-seed.js` 实现时落地。**上线前**必须替换为真实数据并把字段名改为 `password_hash` + bcrypt（见上表）。
 
 ## 3.4 `ams_asset`
 
@@ -132,27 +144,46 @@
 
 **索引**：`asset_id` + `created_at`；`op_type`。
 
+> **借用相关日志统一写本表，不另建 `ams_borrow_log`**：`borrow.submit` / `approve` / `reject` / `cancel` 写 `op_type=BORROW`；`borrow.return` 写 `op_type=RETURN`；`related_id = ams_borrow_request._id` 用于反查申请。详见 `docs/07-workflows.md` 7.5。
+
 ## 3.6 `ams_borrow_request`
+
+> **字段语义对齐 `data/资产借用登记表.md`**：登记表里「数量 / 拟归还日期 / 用途」是逐条资产填写的（per-item），所以这三个字段**下沉到 `items[]`**，申请头部不再保留 `purpose` / `expected_return_date`。教师端 UI 可提供「整单同步」按钮把字段批量下发到每条 item，但数据库存储以 `items[i]` 为准。
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `_id` | string | |
 | `serial_no` | string | 流水号（如 `OU-YYYYMMDD-HHMMSS-XXX`） |
 | `teacher_id` | string | `ams_teacher._id` |
-| `teacher_name` | string | 冗余 |
+| `teacher_name` | string | 冗余（提交时从 `ams_teacher` 拷贝） |
 | `teacher_phone` | string | 冗余 |
-| `items` | object[] | 借用资产明细：`{ asset_id, asset_no, name, brand, spec, unit_price, quantity, location_name, usage }` |
-| `purpose` | string | 用途 |
-| `expected_return_date` | string | 拟归还日期 |
+| `items` | object[] | **借用资产明细，每条结构见 3.6.1** |
 | `signature_file_id` | string | 教师手写签名图片 fileID |
 | `status` | enum | `PENDING` / `APPROVED` / `REJECTED` / `RETURNED` / `CANCELLED` |
 | `reject_reason` | string | 拒绝原因 |
-| `approved_by` | string | 审批管理员 `_id` |
-| `approved_by_name` | string | 审批人姓名 |
+| `approved_by` | string | 审批管理员 `_id`（一期固定 `env-admin`） |
+| `approved_by_name` | string | 审批人姓名（一期固定「系统管理员」） |
 | `approved_at` | timestamp | |
 | `returned_at` | timestamp | 归还时间 |
-| `voucher_qr_payload` | string | 凭证二维码内容（如申请 ID + 校验串） |
+| `voucher_qr_payload` | string | 凭证二维码内容（如 base64({ borrow_id, serial_no, approved_at })） |
 | `created_at` / `updated_at` | timestamp | |
+
+### 3.6.1 `items[i]` 字段（每条资产）
+
+| 字段 | 类型 | 必填 | 来源 | 说明 |
+|------|------|------|------|------|
+| `asset_id` | string | √ | 教师选 | `ams_asset._id` |
+| `asset_no` | string | √ | 提交时冻结 | 资产编号快照 |
+| `name` | string | √ | 提交时冻结 | 资产名称 |
+| `brand` | string |   | 提交时冻结 | 品牌 |
+| `spec` | string |   | 提交时冻结 | 型号 / 规格 |
+| `unit_price` | number |   | 提交时冻结 | 单价 |
+| `location_name` | string |   | 提交时冻结 | 存放地点 |
+| `quantity` | number | √ | 教师填 | 借用数量，默认 1，必须 ≥ 1 |
+| `expected_return_date` | string | √ | 教师填 | 该条资产拟归还日期（ISO 日期 `YYYY-MM-DD`），必须 ≥ 提交日 |
+| `usage` | string | √ | 教师填 | 该条资产的借用用途（如「科研」「教学」「实验」），≤ 50 字 |
+
+> 提交时冻结的字段以 `submit` 当下 `ams_asset` 的值为准；之后资产被改名 / 调价不影响历史申请记录。
 
 **索引**：`serial_no` 唯一；`teacher_id` + `created_at`；`status`。
 

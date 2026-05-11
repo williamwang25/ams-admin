@@ -16,7 +16,7 @@
 
 一期鉴权采用**零环境变量**方案：账号密码硬编码在 `cloudfunctions/<func>/utils/credentials.js`，登录成功后将密码作为 token 返还给前端，业务云函数比对同源 credentials。所有云函数都不需要在控制台配任何环境变量。
 
-集合也由 asset 云函数冷启动时自动创建（详见 10.6），不需要手动到控制台建表。
+集合需首次手动在 CloudBase 控制台建好（详见 10.6）；云函数运行时不再自动建表以避免冷启动额外开销。
 
 ### 10.2.1 部署所有云函数
 
@@ -31,9 +31,15 @@ tcb fn deploy asset
 
 直接编辑 `cloudfunctions/<func>/utils/credentials.js`（auth 一份、所有业务云函数各一份，**必须同步**），改完重新 `tcb fn deploy <func>`。一期默认账号 `admin` / `admin123`。
 
-### 10.2.3 初始化集合（自动）
+### 10.2.3 初始化集合（手动一次）
 
-asset 云函数会在冷启动时自动检查并创建 `ams_asset` / `ams_asset_log` / `ams_seq` 三个集合。第一次调用云函数后到 CloudBase 控制台 → 数据库即可看到这些集合。
+首次部署到一个新环境时，去 CloudBase 控制台 → 数据库 → 新建集合，手工建好：
+
+- `ams_asset`
+- `ams_asset_log`
+- `ams_seq`
+
+后期新增云函数依赖新集合时在本节补登记。
 
 > 后期重新启用 `init` 云函数时可参考 `04-api-spec.md` 4.2.7 原设计。
 
@@ -85,16 +91,14 @@ tcb fn deploy <func>
 
 建议写一个根级脚本 `scripts/deploy-functions.sh` 批量部署所有函数。
 
-## 10.6 数据库初次配置（云函数自动）
+## 10.6 数据库初次配置（控制台手动建一次）
 
-一期遵循「云函数冷启动时自动建集合」原则，**不需要人工去控制台建表**：
+云函数运行时**不再**自动建集合（省去冷启动额外开销 + 避免吞掉建集合相关异常）。首次部署新环境请去控制台手动建好下列集合：
 
-- **集合自动建**：
-  - `cloudfunctions/asset/utils/db.js` 中 `ensureCollections()` 会在冷启动时幂等创建 `ams_asset` / `ams_asset_log` / `ams_seq`，已存在跳过；热实例零开销。
-  - 后续新增业务云函数（`borrow` / `notice` / …）必须复用同样模式：在自己的 `utils/db.js` 里声明该函数需要的集合，并在入口 `await ensureCollections()`。
-- **全集合列表**（供进度参考）：`ams_admin`、`ams_teacher`、`ams_asset`✅、`ams_asset_log`✅、`ams_borrow_request`、`ams_notice`、`ams_dict`、`ams_seq`✅（✅ 为已由 asset 函数自动管理）。
+- **初始必建**（asset 云函数依赖）：`ams_asset` / `ams_asset_log` / `ams_seq`。
+- **后续业务集合**（随对应云函数上线同期新建）：`ams_admin`、`ams_teacher`、`ams_borrow_request`、`ams_notice`、`ams_dict`。
 - **安全规则**：一期不作重点。云函数是唯一读写入口，全部走服务端身份，默认权限即可工作。
-- **索引**：`createCollection` API 不能同时建索引，这个需要手工。**没索引也能跑**，仅上量变大后为实际高频查询字段补：
+- **索引**：需控制台手工维护。**没索引也能跑**，仅上量变大后为实际高频查询字段补：
   - `ams_asset.asset_no` 唯一
   - `ams_asset.business_status` / `dept_code` / `created_at` 普通索引
   - `ams_asset_log.asset_id` + `created_at` 复合索引
@@ -111,7 +115,7 @@ tcb fn deploy <func>
 
 - [ ] `cloudfunctions/<func>/utils/credentials.js` 里的 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 已从默认 `admin` / `admin123` 改为产品账密（两侧同步）
 - [ ] `auth` 与业务云函数（`asset` / `borrow` / `notice` / …）已部署
-- [ ] 首次调用 `asset` 后，控制台可见 `ams_asset` / `ams_asset_log` / `ams_seq` 三个集合已自动创建
+- [ ] 首次部署新环境后，控制台手动建好 `ams_asset` / `ams_asset_log` / `ams_seq` 三个集合
 - [ ] 高频查询字段已加索引（高压业务时补，MVP 随意）
 - [ ] 上传场景出现后，云存储目录已手动创建
 - [ ] 管理端已部署到静态托管，访问域名可用
