@@ -2,7 +2,7 @@
 
 > **作用**：说明系统首次启动的初始化、本地开发、部署上线步骤。
 > **读者**：DevOps / 上线负责人 / 新加入开发者。
-> **编辑边界**：实际命令行步骤可由 agent 优化；一期鉴权以 `auth` 云函数环境变量为准，后期重启 `init` 设计时以 `04-api-spec.md` 4.2.7 为准。
+> **编辑边界**：实际命令行步骤可由 agent 优化；一期鉴权以 `cloudfunctions/<func>/utils/credentials.js` 为唯一凭证源（零环境变量），后期重启 `init` 设计时以 `04-api-spec.md` 4.2.7 为准。
 
 ## 10.1 环境准备
 
@@ -12,32 +12,28 @@
 - 腾讯云 CloudBase CLI（部署）
 - 已开通的 CloudBase 环境，环境 ID 见根目录 `.env`：`ams-d8grnwwy6d8da557f`
 
-## 10.2 部署鉴权云函数 `auth`
+## 10.2 部署云函数
 
-一期鉴权采用精简方案：固定账号 + 固定 token，不依赖数据库与 JWT。原设计中的 `init` 云函数（创集合 + 超管 hash + 字典种子）一期不实施，后期补多管理员 / 教师端时再恢复（可从 git 历史取回）。
+一期鉴权采用**零环境变量**方案：账号密码硬编码在 `cloudfunctions/<func>/utils/credentials.js`，登录成功后将密码作为 token 返还给前端，业务云函数比对同源 credentials。所有云函数都不需要在控制台配任何环境变量。
 
-### 10.2.1 部署 `auth` 函数
+集合也由 asset 云函数冷启动时自动创建（详见 10.6），不需要手动到控制台建表。
+
+### 10.2.1 部署所有云函数
 
 ```bash
-# 在 admin/cloudfunctions/auth 目录
 tcb fn deploy auth
+tcb fn deploy asset
 ```
 
-或通过 CloudBase 控制台上传。该函数无外部依赖（`package.json` 的 `dependencies` 为空）。
+`auth` 无外部依赖（`dependencies` 为空）；`asset` 首次部署会拉 `@cloudbase/node-sdk`。
 
-### 10.2.2 （可选）配置环境变量
+### 10.2.2 修改账号密码
 
-云函数未设置环境变量时会回落到开发默认值（`admin` / `admin123` / `ams-dev-token-change-me`）并在日志里打 warn；产品环境请覆盖：
+直接编辑 `cloudfunctions/<func>/utils/credentials.js`（auth 一份、所有业务云函数各一份，**必须同步**），改完重新 `tcb fn deploy <func>`。一期默认账号 `admin` / `admin123`。
 
-| 变量 | 说明 |
-|------|------|
-| `ADMIN_USERNAME` | 管理员账号 |
-| `ADMIN_PASSWORD` | 管理员密码 |
-| `ADMIN_TOKEN` | 登录成功后返给前端的 token 字符串，后续云函数校验鉴权亦比对此值 |
+### 10.2.3 初始化集合（自动）
 
-### 10.2.3 初始化集合（后期）
-
-一期仅需要 `auth` 云函数，暂不需要创建任何集合。开始实现 `cloudfunctions/asset/` 等业务云函数时，再在 CloudBase 控制台手动创建对应集合（见 10.6）。
+asset 云函数会在冷启动时自动检查并创建 `ams_asset` / `ams_asset_log` / `ams_seq` 三个集合。第一次调用云函数后到 CloudBase 控制台 → 数据库即可看到这些集合。
 
 > 后期重新启用 `init` 云函数时可参考 `04-api-spec.md` 4.2.7 原设计。
 
@@ -89,17 +85,19 @@ tcb fn deploy <func>
 
 建议写一个根级脚本 `scripts/deploy-functions.sh` 批量部署所有函数。
 
-## 10.6 数据库初次配置（按需手动创建）
+## 10.6 数据库初次配置（云函数自动）
 
-一期遵循「需要哪个集合就手动建哪个」原则，不提前建全部，也不初始化安全规则：
+一期遵循「云函数冷启动时自动建集合」原则，**不需要人工去控制台建表**：
 
-- **集合**：在 CloudBase 控制台 → 数据库，随业务模块上线逐个创建。全集合列表：`ams_admin`、`ams_teacher`、`ams_asset`、`ams_asset_log`、`ams_borrow_request`、`ams_notice`、`ams_dict`、`ams_seq`。
-- **安全规则**：一期不作重点。云函数是唯一读写入口，全部走服务端身份，默认权限即可工作。**后期**若启用 SDK 直连（见 `04-api-spec.md` 4.4）再针对需要的集合配置。
-- **索引**：仅为实际高频查询字段创建，不提前一次性齐全：
-  - `ams_admin.username` 唯一（多管理员阶段启用）
-  - `ams_teacher.username` 唯一、`openid` 唯一（sparse，教师端阶段启用）
-  - `ams_asset.asset_no` 唯一（`asset` 云函数上线后启用）
-  - `ams_borrow_request.serial_no` 唯一（`borrow` 云函数上线后启用）
+- **集合自动建**：
+  - `cloudfunctions/asset/utils/db.js` 中 `ensureCollections()` 会在冷启动时幂等创建 `ams_asset` / `ams_asset_log` / `ams_seq`，已存在跳过；热实例零开销。
+  - 后续新增业务云函数（`borrow` / `notice` / …）必须复用同样模式：在自己的 `utils/db.js` 里声明该函数需要的集合，并在入口 `await ensureCollections()`。
+- **全集合列表**（供进度参考）：`ams_admin`、`ams_teacher`、`ams_asset`✅、`ams_asset_log`✅、`ams_borrow_request`、`ams_notice`、`ams_dict`、`ams_seq`✅（✅ 为已由 asset 函数自动管理）。
+- **安全规则**：一期不作重点。云函数是唯一读写入口，全部走服务端身份，默认权限即可工作。
+- **索引**：`createCollection` API 不能同时建索引，这个需要手工。**没索引也能跑**，仅上量变大后为实际高频查询字段补：
+  - `ams_asset.asset_no` 唯一
+  - `ams_asset.business_status` / `dept_code` / `created_at` 普通索引
+  - `ams_asset_log.asset_id` + `created_at` 复合索引
 
 ## 10.7 云存储配置
 
@@ -111,9 +109,10 @@ tcb fn deploy <func>
 
 ## 10.8 上线检查清单
 
-- [ ] `auth` 云函数已部署，`ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_TOKEN` 环境变量在产品环境已覆盖默认值
-- [ ] 业务云函数（`asset` / `borrow` / `notice` / …）已部署
-- [ ] 该阶段需要的数据库集合已手动创建，高频字段已加索引
+- [ ] `cloudfunctions/<func>/utils/credentials.js` 里的 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 已从默认 `admin` / `admin123` 改为产品账密（两侧同步）
+- [ ] `auth` 与业务云函数（`asset` / `borrow` / `notice` / …）已部署
+- [ ] 首次调用 `asset` 后，控制台可见 `ams_asset` / `ams_asset_log` / `ams_seq` 三个集合已自动创建
+- [ ] 高频查询字段已加索引（高压业务时补，MVP 随意）
 - [ ] 上传场景出现后，云存储目录已手动创建
 - [ ] 管理端已部署到静态托管，访问域名可用
 - [ ] 教师端小程序版本已上传并提审（及后期阶段）

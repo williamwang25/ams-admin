@@ -17,6 +17,15 @@
       "handler": "index.main",
       "installDependency": false,
       "envVariables": {}
+    },
+    {
+      "name": "asset",
+      "timeout": 20,
+      "memorySize": 256,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "installDependency": true,
+      "envVariables": {}
     }
   ],
   "region": "ap-shanghai"
