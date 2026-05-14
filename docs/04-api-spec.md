@@ -78,14 +78,14 @@
   - `1001` 入参缺失
   - `2001` 账号或密码错误
 
-#### 4.2.1.2 `teacherLoginByPassword`（待实现）
+#### 4.2.1.2 `teacherLoginByPassword`
 
-- **角色**：公开（仅小程序端调用，云函数侧依赖 `cloud.getWXContext().OPENID`）
+- **角色**：公开（仅小程序端调用，云函数侧依赖 `wx-server-sdk.getWXContext().OPENID`）
 - **入参**：`{ username: string, password: string }`
 - **副作用**：
   1. 若 `ams_teacher` 集合为空（`db.collection('ams_teacher').count() === 0`），先用固定 `_id` `seed_t001..seed_t005` 通过 `doc(id).set(...)` 幂等注入 5 条测试教师（用户名 `t001..t005`，初始密码 `123456`，姓名 / 部门见 `docs/06-teacher-features.md`）。
   2. 校验 `username` + `password`（一期密码以明文存 `password_hash` 字段；上线前替换为 bcrypt）。
-  3. 取 `cloud.getWXContext().OPENID`，写入对应 `ams_teacher.openid`、`ams_teacher.bound_at = now`、`updated_at = now`。
+  3. 取 `wx-server-sdk.getWXContext().OPENID`，写入对应 `ams_teacher.openid`、`ams_teacher.bound_at = now`、`updated_at = now`。
 - **成功返回**：
 
 ```jsonc
@@ -104,7 +104,7 @@
 }
 ```
 
-> 注意：教师端**不发 token**。后续调任何云函数，鉴权依赖 `cloud.getWXContext().OPENID` 反查 `ams_teacher`，详见 4.6.1。
+> 注意：教师端**不发 token**。后续调任何云函数，鉴权依赖 `wx-server-sdk.getWXContext().OPENID` 反查 `ams_teacher`，详见 4.6.1。
 
 - **错误码**：
   - `1001` 入参缺失
@@ -112,10 +112,10 @@
   - `2002` 缺少微信上下文（在非小程序环境调用，未取到 OPENID）
   - `5001` 数据库写入失败
 
-#### 4.2.1.3 `teacherLoginByOpenid`（待实现）
+#### 4.2.1.3 `teacherLoginByOpenid`
 
 - **角色**：公开（仅小程序端调用）
-- **入参**：`{}`（不接受前端传 openid，全部由 `cloud.getWXContext()` 拿）
+- **入参**：`{}`（不接受前端传 openid，全部由 `wx-server-sdk.getWXContext()` 拿）
 - **副作用**：无（只读 `ams_teacher`，不更新）
 - **成功返回**：
 
@@ -144,7 +144,7 @@
 | `getTimeline` | 管理员 / 教师 | 查询 `ams_asset_log` 单资产历史 |
 | `getDetail` | 管理员 / 教师 | 获取资产详情 |
 
-> 一期列表 / 搜索也由 `asset.list`（或云函数补充 action）返回；后期可考虑走 SDK 直连（见 4.4）。
+> 教师端可借资产搜索由 `borrow.searchAssets` 承接：复用教师 OPENID 鉴权，只返回可借资产精简字段，避免把管理员 `asset.list` 权限暴露给教师端。后期可考虑走 SDK 直连（见 4.4）。
 
 ### 4.2.3 `borrow`
 
@@ -278,7 +278,57 @@
   - `list[]` 字段：`_id` / `serial_no` / `status` / `purpose` / `expected_return_date` / `items[]`（仅返资产快照核心字段）/ `created_at` / `approved_at` / `returned_at` / `reject_reason`
 - **错误码**：`2002` / `2003`
 
-#### 4.2.3.7 `adminList`（管理员）
+#### 4.2.3.7 `searchAssets`（教师）
+
+教师端借物车搜索可借资产。
+
+- **角色**：教师（OPENID 鉴权）
+- **入参**：
+
+```jsonc
+{
+  "keyword": "Arduino",  // 可选，匹配 asset_no / name / brand / spec
+  "page": 1,             // 默认 1
+  "pageSize": 20         // 默认 20，上限 50
+}
+```
+
+- **筛选规则**：
+  - 固定只返回 `business_status === 'IDLE'` 的资产
+  - 关键字最长 50 字，空关键字返回最近可借资产
+  - 返回字段必须精简，不返回 `current_borrow_id`、审计字段、图片数组等非必要字段
+  - 为教师端资产展示窗口可返回 `cover_image_file_id`，取 `ams_asset.image_urls[0]`，前端通过临时链接渲染
+
+- **成功返回**：
+
+```jsonc
+{
+  "code": 0,
+  "data": {
+    "total": 1,
+    "page": 1,
+    "pageSize": 20,
+    "list": [
+      {
+        "_id": "asset_xxx",
+        "asset_no": "YQJJ2026000431",
+        "name": "基础开发套件",
+        "brand": "Arduino",
+        "spec": "Arduino Starter Kit",
+        "unit_price": 1060,
+        "quantity": 1,
+        "location_name": "705",
+        "business_status": "IDLE",
+        "cover_image_file_id": "cloud://..."
+      }
+    ]
+  }
+}
+```
+
+- **错误码**：`1001`（关键字超长）/ `2002` / `2003` / `2004`
+
+#### 4.2.3.8 `adminList`（管理员）
 
 管理端审批列表。
 
@@ -300,7 +350,7 @@
   - 比 `listMine` 多返 `teacher_id` / `teacher_name` / `teacher_phone` / `approved_by` / `approved_by_name`
 - **错误码**：`1001` / `2001`
 
-#### 4.2.3.8 `detail`（管理员 / 教师）
+#### 4.2.3.9 `detail`（管理员 / 教师）
 
 申请详情。
 
@@ -310,7 +360,7 @@
 - **成功返回**：`{ code: 0, data: BorrowRequest }`（全字段）
 - **错误码**：`2001`/`2003`/`2004` / `4002`
 
-#### 4.2.3.9 `summary`（管理员）
+#### 4.2.3.10 `summary`（管理员）
 
 Dashboard 看板用，与 `asset.summary` 对齐风格。
 
@@ -428,7 +478,7 @@ Dashboard 看板用，与 `asset.summary` 对齐风格。
      → role = 'admin'
      → operator = { _id: 'env-admin', name: '系统管理员', role: 'super_admin' }
 
-2. const { OPENID } = cloud.getWXContext()
+2. const { OPENID } = wxServerSdk.getWXContext()
    if (OPENID) {
      teacher = await db.collection('ams_teacher').where({ openid: OPENID }).limit(1).get()
      if (teacher) → role = 'teacher', operator = teacher
@@ -440,7 +490,7 @@ Dashboard 看板用，与 `asset.summary` 对齐风格。
 
 ### 4.6.2 关键安全约束
 
-- **OPENID 不接受前端传值**。任何 action 都不读 `event.openid`、`event.data.openid`，只信 `cloud.getWXContext().OPENID`（微信平台注入）。
+- **OPENID 不接受前端传值**。任何 action 都不读 `event.openid`、`event.data.openid`，只信 `wx-server-sdk.getWXContext().OPENID`（微信平台注入）。
 - **管理端 token 不在小程序端使用**。管理员账密硬编码（一期），上线前替换为 `ams_admin` 表 + bcrypt + JWT（详见 `docs/11-open-questions.md`）。
 - **教师端不发 token**。前端只缓存 `profile` 用于 UI 展示；`wx.cloud.callFunction` 时不需要在 `data` 里塞身份字段。
 - **角色闸门**写在每个 action 入口**显式校验**，禁止「公共拦截器假设默认放行」。具体 action 期望角色见 4.2 各表。
@@ -450,7 +500,7 @@ Dashboard 看板用，与 `asset.summary` 对齐风格。
 | 错误码 | 含义 | 触发场景 |
 |--------|------|---------|
 | `2001` | 未登录 / token 无效 | 管理端 action 未提供有效 token |
-| `2002` | 缺少微信上下文 | 教师端 action 未通过小程序云开发调用，`cloud.getWXContext()` 取不到 OPENID |
+| `2002` | 缺少微信上下文 | 教师端 action 未通过小程序云开发调用，`wx-server-sdk.getWXContext()` 取不到 OPENID |
 | `2003` | openid 未绑定教师 | 已拿到 OPENID 但 `ams_teacher` 中查无此人 |
 | `2004` | 越权 | 教师试图操作非本人申请；普通管理员试图调超管 action |
 
