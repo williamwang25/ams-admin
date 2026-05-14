@@ -5,7 +5,7 @@
 >
 > **新成员 / 新 agent 第一步**：读 [`AMS.md`](./AMS.md) → `docs/README.md` → `.memory/PROGRESS.md`
 >
-> `docs/` / `.memory/` / `data/` 三个目录通过 Windows 目录联接（junction）挂载自父仓库，写入即写入根仓库单一事实源。如本目录下找不到这三个文件夹，请按 `AMS.md` 末尾的命令建立 junction。
+> `docs/`、`.memory/` 是AMS系统的文档和上下文管理文件，及时阅读、及时更新，确保一致性
 
 ---
 
