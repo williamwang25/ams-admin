@@ -426,7 +426,74 @@ Dashboard 看板用，与 `asset.summary` 对齐风格。
 | `initialize` | 公开（带秘钥） | 一次性：创建超级管理员、字典数据、示例教师账号；重复调用幂等 |
 | `seedAssets` | 公开（带秘钥） | （可选）导入 `data/资产字段总表.md` 示例数据 |
 
-### 4.2.8 预留
+### 4.2.8 `user`
+
+> 管理端超管用于维护教师账号（`ams_teacher`）。全部 action 依赖管理端 token，教师端不调用本云函数。
+> 一期教师密码仍按 `ams_teacher.password` 明文测试字段存储；上线前需按 `docs/03-data-model.md` 3.3 改为 `password_hash`。
+
+| action | 角色 | 说明 |
+|--------|------|------|
+| `listTeachers` | 超管 | 分页查询教师账号，支持关键字 / 部门 / 微信绑定状态筛选，不返回 `password` |
+| `createTeacher` | 超管 | 新增教师账号，写 `username` / `password` / `name` / `phone` / `department` |
+| `updateTeacher` | 超管 | 编辑教师基础资料，不允许改 `password` / `openid` |
+| `resetTeacherPassword` | 超管 | 重置教师密码；未传密码时生成 8 位临时密码并返回给管理端 |
+| `unbindTeacherOpenid` | 超管 | 清空 `openid` / `unionid` / `bound_at`，让教师下次重新账密绑定 |
+| `deleteTeacher` | 超管 | 删除教师；若已有借用申请则拒绝删除，避免历史单据失去归属 |
+
+#### 4.2.8.1 `listTeachers`
+
+- **入参**：
+
+```jsonc
+{
+  "keyword": "张",        // 可选，匹配 username / name / phone / department
+  "department": "软件学院", // 可选，精确匹配
+  "bound": true,          // 可选，是否已绑定微信 openid
+  "page": 1,
+  "pageSize": 20          // 上限 200
+}
+```
+
+- **成功返回**：`{ code: 0, data: { total, page, pageSize, list: TeacherUser[] } }`
+  - `TeacherUser` 字段：`_id` / `username` / `name` / `phone` / `department` / `openid` / `unionid` / `bound_at` / `created_at` / `updated_at` / `is_bound`
+- **错误码**：`1001` / `2001`
+
+#### 4.2.8.2 `createTeacher`
+
+- **入参**：`{ username: string, password: string, name: string, phone?: string, department?: string }`
+- **副作用**：创建 `ams_teacher` 文档，`openid=null`、`unionid=null`、`bound_at=null`。
+- **成功返回**：`{ code: 0, data: { _id, teacher: TeacherUser } }`
+- **错误码**：`1001`（入参错误）/ `2001`（未登录）/ `3002`（账号重复）/ `5001`
+
+#### 4.2.8.3 `updateTeacher`
+
+- **入参**：`{ id: string, username?: string, name?: string, phone?: string, department?: string }`
+- **副作用**：更新教师基础资料与 `updated_at`；不允许通过本 action 修改密码或 openid。
+- **成功返回**：`{ code: 0, data: { _id, teacher: TeacherUser, noop?: true } }`
+- **错误码**：`1001` / `2001` / `3002`（账号重复）/ `4001`
+
+#### 4.2.8.4 `resetTeacherPassword`
+
+- **入参**：`{ id: string, password?: string }`
+- **副作用**：更新 `ams_teacher.password` 与 `updated_at`；若未传 `password`，云函数生成临时密码。
+- **成功返回**：`{ code: 0, data: { _id, temporary_password } }`
+- **错误码**：`1001` / `2001` / `4001`
+
+#### 4.2.8.5 `unbindTeacherOpenid`
+
+- **入参**：`{ id: string }`
+- **副作用**：清空 `openid` / `unionid` / `bound_at`，更新 `updated_at`。
+- **成功返回**：`{ code: 0, data: { _id, teacher: TeacherUser } }`
+- **错误码**：`1001` / `2001` / `4001`
+
+#### 4.2.8.6 `deleteTeacher`
+
+- **入参**：`{ id: string }`
+- **副作用**：删除教师账号；若 `ams_borrow_request.teacher_id=id` 存在记录，返回 `3001` 并拒绝删除。
+- **成功返回**：`{ code: 0, data: { _id, deleted: true } }`
+- **错误码**：`1001` / `2001` / `3001` / `4001`
+
+### 4.2.9 预留
 
 - `report`：AI 语义报表（一期不实现）
 - `share`：闲置共享（一期不实现）

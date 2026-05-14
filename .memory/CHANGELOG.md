@@ -15,6 +15,13 @@
 
 ## 2026-05-14
 
+### 管理端教师用户管理上线
+
+- **类别**：云函数接口 / 管理端页面 / 配置
+- **变更**：新增 `user` 云函数，提供 `listTeachers` / `createTeacher` / `updateTeacher` / `resetTeacherPassword` / `unbindTeacherOpenid` / `deleteTeacher`，用于超管维护 `ams_teacher`；`deleteTeacher` 会阻止删除已有借用记录的教师。
+- **影响面**：管理端 `/admins` 页面、`src/modules/user/*`、`cloudbaserc.json`、`docs/04-api-spec.md`、`docs/05-admin-features.md`、`docs/10-init-and-deploy.md`。
+- **动作建议**：教师密码仍为一期明文字段 `password`；上线前需按既有待办迁移到 `password_hash` + bcrypt，并补 `ams_teacher.username` / `openid` 索引。
+
 ### 教师端可借资产增加封面字段
 
 - **类别**：云函数接口 / UI 展示

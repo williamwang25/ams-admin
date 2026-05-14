@@ -20,6 +20,9 @@
 
 ### 2026-05-14
 
+- **管理端教师用户管理完成并上线**：新增 `cloudfunctions/user` Event 云函数（`listTeachers` / `createTeacher` / `updateTeacher` / `resetTeacherPassword` / `unbindTeacherOpenid` / `deleteTeacher`），超管 token 鉴权，列表不返回 `password`，删除教师会检查 `ams_borrow_request` 防止历史单据失去归属；`cloudbaserc.json` 已登记 `user`。
+- **管理端 `/admins` 替换占位为真实教师账号管理页**：新增 `src/modules/user/types.ts` / `api.ts`，页面支持关键字 / 部门 / 微信绑定状态筛选，新增教师、编辑资料、重置临时密码、解绑微信、删除教师；同步更新 `docs/04-api-spec.md`、`docs/05-admin-features.md`、`docs/10-init-and-deploy.md` 与 `.memory/CHANGELOG.md`。
+- **教师用户管理自检与云端 smoke 通过**：`node --check cloudfunctions/user/**/*.js`、`vue-tsc --noEmit`、ESLint、`npm run build` 通过；已在 `ams-d8grnwwy6d8da557f` 创建 `user` 云函数并云端验证教师列表 + 临时教师 create/update/reset/unbind/delete，临时账号已删除。
 - **教师端 CloudBase 调用与页面骨架落地**：小程序开启 `mp-weixin.cloud`，`src/main.ts` / `src/utils/cloud.ts` 初始化 CloudBase；新增 `src/api/auth.ts` / `src/api/borrow.ts` / `src/api/asset.ts`，教师端登录、借用、可借资产搜索均走云函数。
 - **教师端借用主链路完成代码侧闭环**：完成账密登录 + openid 免密、首页、借用资产搜索、借物车、申请表、签名上传、详情、凭证、归还、我的申请页面；借物车数量按可借数量约束，申请表按 per-item `quantity / expected_return_date / usage` 提交。
 - **可借资产搜索方案 B 已实现**：新增 `borrow.searchAssets` 云函数 action，只返回 `business_status=IDLE` 的可借资产精简字段；同步更新 `docs/04-api-spec.md` 和 `.memory/CHANGELOG.md`。
@@ -106,6 +109,7 @@
 - [x] Dashboard 接入 `borrow.summary`：待审批卡启用、7 天出入仓曲线（2026-05-12）
 - [ ] 通知公告卡（依赖 notice 云函数上线）
 - [x] `admin/src/modules/borrow/`：types / api / BorrowList / BorrowDetail（含审批 / 拒绝 / 代归还 / 签名预览 / 凭证 payload）（2026-05-12）
+- [x] `admin/src/modules/user/`：教师用户管理（列表筛选 / 新增 / 编辑 / 重置密码 / 解绑微信 / 删除保护）+ `user` 云函数上线（2026-05-14）
 
 ### M3 · 教师端 MVP（**当前阶段**）
 
