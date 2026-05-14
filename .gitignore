@@ -32,4 +32,10 @@ dist-ssr
 
 # CloudBase
 .cloudbase
-cloudbase-state.json 
+cloudbase-state.json
+
+# AI 工具专属目录（本地使用，不纳入团队仓库）
+.clinerules/
+
+# docs / .memory / data 为真实目录，正常追踪（不排除）
+# 它们已从根目录迁入 admin/ 作为事实唯一源

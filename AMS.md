@@ -2,9 +2,9 @@
 
 > **本文件是 AMS 项目在 `admin/` 工作区的精简入口**。
 > 当你单独打开 `admin/` 文件夹时，**先读本文，再读 `AGENTS.md` / `.windsurf/rules/`**。
-> 完整规则与文档以根仓库 `d:\Code\AMS\` 为准；本目录通过 junction 已挂载 `docs/`、`.memory/`、`data/`。
+> `docs/`、`.memory/`、`data/` 是本仓库内的真实目录，路径直接以 `admin/` 为基准读写。
 >
-> **⚠️ 新会话第一步：读 `.memory/HANDOFF.md`**（接力上下文：当前里程碑、用户最新决策、下一步动作、避坑提示）。
+> **（如果有） `.memory/HANDOFF.md`**（接力上下文：当前里程碑、用户最新决策、下一步动作、避坑提示）。
 
 ## 项目身份
 
@@ -15,7 +15,7 @@
 
 ## 必读文档（任何动作前先读）
 
-> 通过 junction 挂载，路径直接以 `admin/` 为基准。
+> 路径以 `admin/` 为基准。
 
 1. `docs/README.md` — 文档导航
 2. `docs/01-overview.md` — 项目目标、范围
@@ -39,19 +39,17 @@
 7. **模块边界即 agent 边界**：`admin/src/modules/<module>/` 由该模块独占编辑；详见 `docs/02-architecture.md` 2.3 与 `docs/09-dev-conventions.md`。
 8. **TypeScript 严格**：禁止 `any` / `as any` / `@ts-ignore` / `@ts-nocheck`（详见 `admin/AGENTS.md` 的 Engineering constitution）。
 9. **UI 不含 emoji**：图标用 `lucide-vue-next`；DaisyUI 主题需扩展 `primary=#0096C2` / `primary-focus=#006B8F`。
-10. **完成前自验证**：`tsc --noEmit` / lint / build；触及路由 / 表单 / 异步流时手动跑通。
+10. **完成前自验证**：`tsc --noEmit` / lint / 表单 / 异步流时手动跑通。
 
-## 文件来源说明
+## 目录说明
 
-`admin/` 下这些文件夹通过 Windows 目录联接（junction）挂载自父仓库：
+`docs/`、`.memory/`、`data/` 是 admin 仓库内的真实目录，所有 agent 与开发者直接在此路径下读写，无需关心外部路径。
 
-| 路径 | 真实位置 | 用途 |
-|------|----------|------|
-| `admin/docs/` | `d:\Code\AMS\docs\` | 项目需求与设计文档 |
-| `admin/.memory/` | `d:\Code\AMS\.memory\` | 进度与变更日志 |
-| `admin/data/` | `d:\Code\AMS\data\` | 业务原始资料（资产字段总表、借用登记表） |
-
-**写入这些路径相当于写入根仓库**，请直接编辑（无需复制粘贴）。
+| 路径 | 用途 |
+|------|------|
+| `docs/` | 项目需求与设计文档（事实唯一源） |
+| `.memory/` | 进度与变更日志（跨会话上下文） |
+| `data/` | 业务原始资料（资产字段总表、借用登记表） |
 
 ## CloudBase 模板规则
 
