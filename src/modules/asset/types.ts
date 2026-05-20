@@ -155,6 +155,43 @@ export interface AssetUpdateResult {
   asset: Asset;
 }
 
+export interface AssetImageUploadFile {
+  name: string;
+  content_type: string;
+  base64: string;
+}
+
+export interface AssetImageUploadInput {
+  asset_no: string;
+  files: AssetImageUploadFile[];
+}
+
+export interface AssetImageUploadedFile {
+  fileID: string;
+  cloudPath: string;
+  content_type: string;
+  size: number;
+}
+
+export interface AssetImageUploadResult {
+  fileIDs: string[];
+  files: AssetImageUploadedFile[];
+}
+
+export interface AssetImageTempUrlInput {
+  fileIDs: string[];
+  maxAge?: number;
+}
+
+export interface AssetImageTempUrlItem {
+  fileID: string;
+  url: string;
+}
+
+export interface AssetImageTempUrlResult {
+  urls: AssetImageTempUrlItem[];
+}
+
 export interface AssetTimelineResult {
   list: AssetLog[];
   total: number;

@@ -13,6 +13,15 @@
 
 ---
 
+## 2026-05-20
+
+### 管理端资产图片上传接入
+
+- **类别**：云函数接口 / 管理端页面 / 云存储路径约定 / 文档
+- **变更**：资产入库与资产编辑支持选择多张 JPG / PNG / WebP 图片；新增 `asset.uploadImages` / `asset.resolveImageUrls` action，由云函数上传到云存储并解析临时 URL，路径统一为 `asset/{asset_no}/{asset_no}-{seq}.{ext}`，再将 fileID 数组写入 `ams_asset.image_urls`。同步修复 `ams_seq` 计数器读取兼容问题，避免手动入库编号反复生成 `YQJJ2026000001`。
+- **影响面**：管理端 `src/modules/asset/*`、`cloudfunctions/asset`、资产列表缩略图、资产详情图片区、教师端 `borrow.searchAssets` 使用的封面字段（仍取 `image_urls[0]`）。
+- **动作建议**：资产图片不要再使用浏览器 storage API 直传或解析；管理端自定义 token 体系下统一走 `asset.uploadImages` / `asset.resolveImageUrls`，避免 storage 403 与本地安全域名限制。
+
 ## 2026-05-14
 
 ### 管理端教师用户管理上线

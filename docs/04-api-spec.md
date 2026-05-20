@@ -141,6 +141,8 @@
 | `changeStatus` | 管理员 | 变更 `business_status`（如 IDLE↔MAINTAIN / SCRAP），写日志 |
 | `changeLocation` | 管理员 | 变更存放地点，写日志 `LOCATION_CHANGE` |
 | `changeUser` | 管理员 | 变更使用人，写日志 `USER_CHANGE` |
+| `uploadImages` | 管理员 | 上传资产图片到云存储，返回 fileID；用于管理端绕开浏览器直传 storage 权限限制 |
+| `resolveImageUrls` | 管理员 | 批量解析资产图片临时 URL；用于管理端绕开浏览器直接调用 storage |
 | `getTimeline` | 管理员 / 教师 | 查询 `ams_asset_log` 单资产历史 |
 | `getDetail` | 管理员 / 教师 | 获取资产详情 |
 
@@ -526,11 +528,13 @@ Dashboard 看板用，与 `asset.summary` 对齐风格。
 
 ## 4.5 图片 / 签名上传
 
-- 前端使用 `app.uploadFile({ cloudPath, filePath })` 直传云存储，路径建议：
-  - 资产图片：`asset/{asset_no}/{timestamp}-{random}.jpg`
-  - 签名图片：`signature/{teacher_id}/{borrow_serial_no}.png`
-- 上传成功得到 `fileID`，再调用对应云函数（`asset.create` / `borrow.submit`）落库。
-- 渲染时通过 `app.getTempFileURL({ fileList })` 转 https 链接。
+- 管理端资产图片：前端先校验 `File` 并转 base64，再调用 `asset.uploadImages`，由云函数使用 Node SDK 写入云存储；路径统一为 `asset/{asset_no}/{asset_no}-{seq}.{ext}`，例如 `asset/YQJJ2026000004/YQJJ2026000004-01.jpg`。
+- `asset.uploadImages` 入参：`{ asset_no: string, files: [{ name: string, content_type: 'image/jpeg'|'image/png'|'image/webp', base64: string }] }`；单次最多 8 张，单张不超过 5MB。
+- `asset.uploadImages` 成功返回：`{ fileIDs: string[], files: [{ fileID, cloudPath, content_type, size }] }`。管理端再调用 `asset.update` 将 fileID 数组写入 `ams_asset.image_urls`。
+- 教师端签名图片可继续按平台 SDK 上传，建议路径：`signature/{teacher_id}/{borrow_serial_no}.png`。
+- 上传成功得到 `fileID`，再调用对应云函数（`asset.update` / `borrow.submit`）落库。
+- 管理端渲染资产图片时调用 `asset.resolveImageUrls({ fileIDs, maxAge })` 转 https 临时链接，不在浏览器直接调用 storage API。
+- 教师端签名 / 小程序侧图片渲染仍可按平台 SDK 能力通过 `getTempFileURL` 转 https 链接。
 
 ## 4.6 双身份鉴权约定
 

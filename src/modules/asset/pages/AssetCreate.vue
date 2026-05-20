@@ -184,6 +184,13 @@
         </div>
       </fieldset>
 
+      <fieldset class="rounded-lg border border-base-300 bg-base-100 p-4 shadow-card">
+        <AssetImageUploader v-model="imageFiles" :disabled="submitting" />
+        <div v-if="uploadProgress" class="mt-3 text-xs text-base-content/60">
+          正在上传：{{ uploadProgress.fileName }}（{{ uploadProgress.percent }}%）
+        </div>
+      </fieldset>
+
       <div v-if="error" class="alert alert-error py-2 text-sm">
         <span>{{ error }}</span>
       </div>
@@ -202,8 +209,10 @@
 <script setup lang="ts">
 import { reactive, ref } from "vue";
 import { RouterLink, useRouter } from "vue-router";
-import { createAsset } from "@/modules/asset/api";
-import type { AssetCreateInput } from "@/modules/asset/types";
+import { createAsset, updateAsset } from "@/modules/asset/api";
+import type { AssetCreateInput, AssetCreateResult } from "@/modules/asset/types";
+import AssetImageUploader from "@/modules/asset/components/AssetImageUploader.vue";
+import { uploadAssetImages, type UploadAssetImageProgress } from "@/modules/asset/storage";
 import { CloudFunctionError } from "@/utils/http";
 
 const router = useRouter();
@@ -247,6 +256,9 @@ const form = reactive<Partial<AssetCreateInput>>({
 
 const submitting = ref(false);
 const error = ref<string | null>(null);
+const imageFiles = ref<File[]>([]);
+const uploadProgress = ref<UploadAssetImageProgress | null>(null);
+const createdAsset = ref<AssetCreateResult | null>(null);
 
 const onSubmit = async () => {
   if (submitting.value) return;
@@ -260,21 +272,46 @@ const onSubmit = async () => {
   }
   submitting.value = true;
   error.value = null;
+  uploadProgress.value = null;
   try {
     // 过滤空字符串，避免覆盖云函数默认值
-    const payload: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(form)) {
-      if (v === "" || v === null || v === undefined) continue;
-      payload[k] = v;
+    if (!createdAsset.value) {
+      const payload: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(form)) {
+        if (v === "" || v === null || v === undefined) continue;
+        payload[k] = v;
+      }
+      createdAsset.value = await createAsset(payload as unknown as AssetCreateInput);
     }
-    const res = await createAsset(payload as unknown as AssetCreateInput);
-    router.replace({ name: "asset-detail", params: { id: res._id } });
+
+    if (imageFiles.value.length > 0) {
+      const imageFileIDs = await uploadAssetImages(
+        createdAsset.value.asset_no,
+        imageFiles.value,
+        (progress) => {
+          uploadProgress.value = progress;
+        }
+      );
+      await updateAsset({
+        id: createdAsset.value._id,
+        image_urls: imageFileIDs,
+      });
+    }
+
+    router.replace({ name: "asset-detail", params: { id: createdAsset.value._id } });
   } catch (err) {
-    if (err instanceof CloudFunctionError) error.value = err.message;
-    else if (err instanceof Error) error.value = err.message;
-    else error.value = "提交失败";
+    const message =
+      err instanceof CloudFunctionError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : "提交失败";
+    error.value = createdAsset.value
+      ? `资产已入库（${createdAsset.value.asset_no}），但图片保存未完成：${message}。请修正后再次提交，系统会继续保存图片。`
+      : message;
   } finally {
     submitting.value = false;
+    uploadProgress.value = null;
   }
 };
 </script>

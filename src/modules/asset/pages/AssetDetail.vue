@@ -59,6 +59,8 @@
       v-else-if="asset && activeTab === 'detail'"
       class="rounded-lg border border-base-300 bg-base-100 p-6 shadow-card space-y-4"
     >
+      <AssetImageGallery :file-ids="asset.image_urls ?? []" />
+
       <div v-for="group in DETAIL_GROUPS" :key="group.title">
         <h3 class="text-sm font-semibold text-base-content mb-2">{{ group.title }}</h3>
         <dl class="grid gap-x-6 gap-y-2 md:grid-cols-2 text-sm">
@@ -142,6 +144,7 @@ import { getAssetDetail, getAssetTimeline } from "@/modules/asset/api";
 import type { Asset, AssetLog } from "@/modules/asset/types";
 import StatusTag from "@/components/StatusTag.vue";
 import EditAssetModal from "@/modules/asset/components/EditAssetModal.vue";
+import AssetImageGallery from "@/modules/asset/components/AssetImageGallery.vue";
 import ChangeStatusModal from "@/modules/asset/components/ChangeStatusModal.vue";
 import ChangeLocationModal from "@/modules/asset/components/ChangeLocationModal.vue";
 import ChangeUserModal from "@/modules/asset/components/ChangeUserModal.vue";

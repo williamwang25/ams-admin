@@ -47,6 +47,7 @@
       <table class="table table-sm">
         <thead>
           <tr>
+            <th>图片</th>
             <th>资产编号</th>
             <th>名称</th>
             <th>品牌/型号</th>
@@ -60,16 +61,27 @@
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="9" class="text-center text-sm text-base-content/40 py-10">
+            <td colspan="10" class="text-center text-sm text-base-content/40 py-10">
               <span class="loading loading-spinner loading-sm" /> 加载中
             </td>
           </tr>
           <tr v-else-if="list.length === 0">
-            <td colspan="9" class="text-center text-sm text-base-content/40 py-10">
+            <td colspan="10" class="text-center text-sm text-base-content/40 py-10">
               暂无符合条件的资产
             </td>
           </tr>
           <tr v-for="item in list" :key="item._id" class="hover">
+            <td>
+              <img
+                v-if="coverImageUrl(item)"
+                :src="coverImageUrl(item)"
+                class="h-10 w-14 rounded object-cover"
+                alt="资产缩略图"
+              />
+              <div v-else class="flex h-10 w-14 items-center justify-center rounded bg-base-200 text-base-content/30">
+                <ImageIcon :size="16" />
+              </div>
+            </td>
             <td class="font-mono text-xs">
               {{ item.asset_no }}
               <span v-if="item.is_large" class="badge badge-warning badge-xs ml-1">大型</span>
@@ -113,9 +125,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
-import { Plus } from "lucide-vue-next";
+import { Image as ImageIcon, Plus } from "lucide-vue-next";
 import { listAssets } from "@/modules/asset/api";
 import type { Asset, AssetListFilter } from "@/modules/asset/types";
+import { resolveAssetImageTempUrls } from "@/modules/asset/storage";
 import StatusTag from "@/components/StatusTag.vue";
 import { formatMoney } from "@/utils/format";
 import { CloudFunctionError } from "@/utils/http";
@@ -151,6 +164,7 @@ const total = ref(0);
 const page = ref(1);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const thumbnailUrls = ref<Record<string, string>>({});
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)));
 
@@ -176,14 +190,37 @@ const fetchPage = async () => {
     });
     list.value = res.list;
     total.value = res.total;
+    await loadThumbnails(res.list);
   } catch (err) {
     if (err instanceof CloudFunctionError) error.value = err.message;
     else if (err instanceof Error) error.value = err.message;
     else error.value = "加载失败";
     list.value = [];
     total.value = 0;
+    thumbnailUrls.value = {};
   } finally {
     loading.value = false;
+  }
+};
+
+const coverImageId = (asset: Asset): string | undefined => asset.image_urls?.[0];
+
+const coverImageUrl = (asset: Asset): string | undefined => {
+  const fileID = coverImageId(asset);
+  return fileID ? thumbnailUrls.value[fileID] : undefined;
+};
+
+const loadThumbnails = async (assets: Asset[]) => {
+  const coverIDs = assets.map(coverImageId).filter((id): id is string => Boolean(id));
+  if (coverIDs.length === 0) {
+    thumbnailUrls.value = {};
+    return;
+  }
+  try {
+    const urlMap = await resolveAssetImageTempUrls(coverIDs);
+    thumbnailUrls.value = Object.fromEntries(urlMap);
+  } catch {
+    thumbnailUrls.value = {};
   }
 };
 

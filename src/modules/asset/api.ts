@@ -9,6 +9,10 @@ import type {
   Asset,
   AssetCreateInput,
   AssetCreateResult,
+  AssetImageTempUrlInput,
+  AssetImageTempUrlResult,
+  AssetImageUploadInput,
+  AssetImageUploadResult,
   AssetListInput,
   AssetListResult,
   AssetSummary,
@@ -23,6 +27,16 @@ export const createAsset = (input: AssetCreateInput) =>
 
 export const updateAsset = (input: AssetUpdateInput) =>
   callFunction<AssetUpdateResult>({ name: "asset", action: "update", data: input });
+
+export const uploadAssetImageFiles = (input: AssetImageUploadInput) =>
+  callFunction<AssetImageUploadResult>({ name: "asset", action: "uploadImages", data: input });
+
+export const resolveAssetImageUrls = (input: AssetImageTempUrlInput) =>
+  callFunction<AssetImageTempUrlResult>({
+    name: "asset",
+    action: "resolveImageUrls",
+    data: input,
+  });
 
 export const changeAssetStatus = (input: {
   id: string;

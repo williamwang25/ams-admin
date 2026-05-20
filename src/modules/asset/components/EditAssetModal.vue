@@ -146,6 +146,18 @@
             </label>
           </div>
         </fieldset>
+
+        <fieldset class="rounded border border-base-300 p-3">
+          <legend class="px-2 text-xs font-semibold">图片</legend>
+          <AssetImageUploader
+            v-model="newImageFiles"
+            v-model:existing-file-ids="currentImageFileIDs"
+            :disabled="submitting"
+          />
+          <div v-if="uploadProgress" class="mt-3 text-xs text-base-content/60">
+            正在上传：{{ uploadProgress.fileName }}（{{ uploadProgress.percent }}%）
+          </div>
+        </fieldset>
       </form>
 
       <div v-if="error" class="alert alert-error py-2 text-xs mt-3">
@@ -168,6 +180,8 @@
 import { reactive, ref } from "vue";
 import { updateAsset } from "@/modules/asset/api";
 import type { Asset, AssetUpdateInput } from "@/modules/asset/types";
+import AssetImageUploader from "@/modules/asset/components/AssetImageUploader.vue";
+import { uploadAssetImages, type UploadAssetImageProgress } from "@/modules/asset/storage";
 import { CloudFunctionError } from "@/utils/http";
 
 const props = defineProps<{ asset: Asset }>();
@@ -211,11 +225,20 @@ const form = reactive({
 
 const submitting = ref(false);
 const error = ref<string | null>(null);
+const newImageFiles = ref<File[]>([]);
+const currentImageFileIDs = ref<string[]>([...(a.image_urls ?? [])]);
+const uploadProgress = ref<UploadAssetImageProgress | null>(null);
+
+const arraysEqual = (left: string[], right: string[]): boolean => {
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
+};
 
 const onSubmit = async () => {
   if (submitting.value) return;
   submitting.value = true;
   error.value = null;
+  uploadProgress.value = null;
   try {
     // 只提交「与原值不同」的字段，避免无意义的 UPDATE 日志
     const payload: Record<string, unknown> = { id: props.asset._id };
@@ -227,6 +250,22 @@ const onSubmit = async () => {
         payload[k] = normalized;
       }
     }
+
+    let nextImageFileIDs = [...currentImageFileIDs.value];
+    if (newImageFiles.value.length > 0) {
+      const uploadedFileIDs = await uploadAssetImages(
+        props.asset.asset_no,
+        newImageFiles.value,
+        (progress) => {
+          uploadProgress.value = progress;
+        }
+      );
+      nextImageFileIDs = [...nextImageFileIDs, ...uploadedFileIDs];
+    }
+    if (!arraysEqual(nextImageFileIDs, props.asset.image_urls ?? [])) {
+      payload.image_urls = nextImageFileIDs;
+    }
+
     // 没有任何修改时直接关闭
     if (Object.keys(payload).length === 1) {
       emit("close");
@@ -240,6 +279,7 @@ const onSubmit = async () => {
     else error.value = "提交失败";
   } finally {
     submitting.value = false;
+    uploadProgress.value = null;
   }
 };
 </script>
