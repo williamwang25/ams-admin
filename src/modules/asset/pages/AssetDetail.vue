@@ -20,7 +20,7 @@
             :title="mutateDisabledReason"
             @click="openModal = 'edit'"
           >
-            <Pencil :size="14" /> 编辑
+            <Pencil :size="14" /> 编辑基础信息
           </button>
           <button
             class="btn btn-ghost btn-sm"
@@ -44,7 +44,7 @@
             :title="userDisabledReason"
             @click="openModal = 'user'"
           >
-            变更使用人
+            变更归属
           </button>
         </template>
         <RouterLink to="/assets" class="btn btn-ghost btn-sm">返回列表</RouterLink>
