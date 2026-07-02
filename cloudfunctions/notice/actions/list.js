@@ -12,8 +12,8 @@
 
 const { ok, err } = require('../utils/response');
 const { db, _, COLLECTIONS } = require('../utils/cloudbase');
-const { requireSuperAdmin } = require('../utils/auth');
 const { LEVEL_SET } = require('../utils/validate');
+const { requireSuperAdmin } = require('../utils/auth');
 
 const PAGE_SIZE_DEFAULT = 20;
 const PAGE_SIZE_MAX = 50;
@@ -24,17 +24,20 @@ function escapeRegExp(s) {
 }
 
 module.exports = async (event) => {
-  const auth = requireSuperAdmin(event);
-  if (!auth.ok) return err(auth.error.code, auth.error.message);
-
   const data = (event && event.data) || {};
+  const publicPublishedOnly = data.published_only === true;
+  if (!publicPublishedOnly) {
+    const auth = requireSuperAdmin(event);
+    if (!auth.ok) return err(auth.error.code, auth.error.message);
+  }
+
   const page = Math.max(1, Math.floor(Number(data.page) || 1));
   let pageSize = Math.floor(Number(data.pageSize) || PAGE_SIZE_DEFAULT);
   if (!Number.isFinite(pageSize) || pageSize <= 0) pageSize = PAGE_SIZE_DEFAULT;
   pageSize = Math.min(pageSize, PAGE_SIZE_MAX);
 
   const conds = [];
-  if (data.published_only === true || data.published === true) {
+  if (publicPublishedOnly || data.published === true) {
     conds.push({ published: true });
   } else if (data.published === false) {
     conds.push({ published: false });
@@ -57,12 +60,27 @@ module.exports = async (event) => {
     if (total === 0) return ok({ total: 0, list: [] });
 
     const listRes = await collection
-      .orderBy('created_at', 'desc')
+      .orderBy(publicPublishedOnly ? 'published_at' : 'created_at', 'desc')
       .skip((page - 1) * pageSize)
       .limit(pageSize)
       .get();
 
-    return ok({ total, list: (listRes && listRes.data) || [] });
+    const list = (listRes && listRes.data) || [];
+    if (!publicPublishedOnly) return ok({ total, list });
+
+    return ok({
+      total,
+      list: list.map((item) => ({
+        _id: item._id,
+        title: item.title || '',
+        content: item.content || '',
+        level: item.level || 'INFO',
+        published: Boolean(item.published),
+        published_at: item.published_at || null,
+        created_at: item.created_at || null,
+        updated_at: item.updated_at || null,
+      })),
+    });
   } catch (e) {
     console.error('[notice.list]', e);
     return err(5001, '获取通知列表失败');

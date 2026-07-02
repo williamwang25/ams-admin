@@ -3,7 +3,7 @@
  * 契约：docs/04-api-spec.md 4.2.6。
  *
  * actions：create / update / publish / delete / list / getDetail
- * 鉴权：全部需管理端 token。
+ * 鉴权：除 list({ published_only: true }) 只读已发布通知外，均需管理端 token。
  */
 
 const actions = {

@@ -49,7 +49,7 @@
 
 ### 4.2.1 `auth`
 
-> **当前实现（M1 / M2）**：仅 `adminLogin` 已部署。`teacherLoginByPassword` / `teacherLoginByOpenid` 在 borrow 模块开发时同步落地。
+> **当前实现（M1 / M2）**：`adminLogin` / `teacherLoginByPassword` / `teacherLoginByOpenid` / `teacherUpdateProfile` 已落地。
 > `getProfile` / `changePassword` / `teacherBindOpenid` 一期不实现：管理员 profile 由 `adminLogin` 返回后前端缓存即可；教师 openid 绑定合并进 `teacherLoginByPassword`。
 
 #### 4.2.1.1 `adminLogin`（已实现）
@@ -131,6 +131,35 @@
 - **错误码**：
   - `2002` 缺少微信上下文
   - `2003` openid 未绑定（前端应跳转账密登录页）
+
+#### 4.2.1.4 `teacherUpdateProfile`
+
+- **角色**：教师（OPENID 鉴权）
+- **入参**：`{ name: string, phone?: string, department?: string }`
+- **副作用**：用 `wx-server-sdk.getWXContext().OPENID` 反查当前教师，仅更新本人 `name` / `phone` / `department` 与 `updated_at`；不允许修改 `username` / `password` / `openid`。
+- **成功返回**：
+
+```jsonc
+{
+  "code": 0,
+  "data": {
+    "profile": {
+      "_id": "seed_t001",
+      "username": "t001",
+      "name": "张三",
+      "department": "软件学院",
+      "phone": "13800000000",
+      "openid": "<bound openid>"
+    }
+  }
+}
+```
+
+- **错误码**：
+  - `1001` 入参缺失 / 长度错误
+  - `2002` 缺少微信上下文
+  - `2003` openid 未绑定教师
+  - `5001` 数据库写入失败
 
 ### 4.2.2 `asset`
 
@@ -431,10 +460,10 @@ Dashboard 看板用，与 `asset.summary` 对齐风格。
 | `update` | 管理员 | 修改标题 / 内容 / 级别 |
 | `publish` | 管理员 | 上下架；入参 `{ id, published: boolean }` |
 | `delete` | 管理员 | 删除通知 |
-| `list` | 管理员 | 分页列表；支持 `published_only` / `published` / `level` / `keyword` |
+| `list` | 管理员 / 教师只读 | 分页列表；管理端支持 `published_only` / `published` / `level` / `keyword`；教师端仅允许 `published_only=true` 拉取已发布通知 |
 | `getDetail` | 管理员 | 单条详情 |
 
-> 集合 `ams_notice`；鉴权与其他业务云函数一致（`event.auth.token === ADMIN_PASSWORD`）。
+> 集合 `ams_notice`；除 `list({ published_only: true })` 作为教师端首页只读公告入口外，其余通知 action 鉴权与其他业务云函数一致（`event.auth.token === ADMIN_PASSWORD`）。教师端只读列表返回已发布通知的 `_id / title / content / level / published / published_at / created_at / updated_at`，不返回 `created_by`。
 
 ### 4.2.7 `init`（一期已下线）
 

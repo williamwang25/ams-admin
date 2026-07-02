@@ -13,6 +13,15 @@
 
 ---
 
+## 2026-07-03
+
+### 教师端通知与个人信息接口补齐
+
+- **类别**：云函数接口 / 教师端页面 / 文档
+- **变更**：`notice.list` 新增教师端只读路径：当入参 `published_only=true` 时无需管理端 token，仅返回已发布通知的安全字段，用于小程序首页通知提醒栏；新增 `auth.teacherUpdateProfile`，教师端通过微信 OPENID 反查本人后更新 `name` / `phone` / `department`。
+- **影响面**：教师端首页通知展示、`src/api/notice.ts`、`src/pages/index/index.vue`、`src/pages/me/me.vue`、`cloudfunctions/notice/actions/list.js`、`cloudfunctions/auth/actions/teacherUpdateProfile.js`。
+- **动作建议**：上线前需重新部署 `notice` 与 `auth` 云函数；教师端不要调用管理端 `user.updateTeacher`，个人资料修改统一走 `auth.teacherUpdateProfile`。
+
 ## 2026-05-20
 
 ### 管理端资产图片上传接入
