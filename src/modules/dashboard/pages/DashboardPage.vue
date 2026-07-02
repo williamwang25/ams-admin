@@ -276,24 +276,31 @@
         <div v-else-if="trendRows.length === 0" class="py-6 text-sm text-base-content/40 text-center">
           暂无数据
         </div>
-        <div v-else class="h-40 flex items-end gap-0.5">
+        <div v-else class="overflow-x-auto overscroll-x-contain">
           <div
-            v-for="row in trendRows"
-            :key="row.date"
-            class="flex-1 flex flex-col items-center gap-0.5 h-full justify-end"
-            :title="`${row.date} 借${row.borrow} 还${row.return}`"
+            class="h-40 flex items-end gap-1 px-0.5"
+            :style="{ width: trendQuantityChartWidth }"
           >
-            <div class="w-full flex gap-px items-end h-32">
-              <div
-                class="flex-1 bg-primary rounded-t-sm min-h-[2px]"
-                :style="{ height: row.borrowHeight + '%' }"
-              />
-              <div
-                class="flex-1 bg-success rounded-t-sm min-h-[2px]"
-                :style="{ height: row.returnHeight + '%' }"
-              />
+            <div
+              v-for="row in trendRows"
+              :key="row.date"
+              class="w-7 shrink-0 flex flex-col items-center gap-0.5 h-full justify-end"
+              :title="`${row.date} 借${row.borrow} 还${row.return}`"
+            >
+              <div class="w-full flex gap-px items-end h-32">
+                <div
+                  class="flex-1 bg-primary rounded-t-sm min-h-[2px]"
+                  :style="{ height: row.borrowHeight + '%' }"
+                />
+                <div
+                  class="flex-1 bg-success rounded-t-sm min-h-[2px]"
+                  :style="{ height: row.returnHeight + '%' }"
+                />
+              </div>
+              <span class="text-[10px] text-base-content/50 font-mono whitespace-nowrap">{{
+                row.date.slice(5)
+              }}</span>
             </div>
-            <span class="text-[10px] text-base-content/50 font-mono">{{ row.date.slice(5) }}</span>
           </div>
         </div>
         <p class="mt-2 text-xs text-base-content/40 flex gap-3">
@@ -380,6 +387,9 @@ import {
 } from "@/utils/status";
 
 const TREND_DAYS_OPTIONS = [7, 30, 90] as const;
+/** 数量曲线每列宽度（px），90 天时通过横向滚动浏览 */
+const TREND_BAR_COLUMN_PX = 28;
+const TREND_BAR_GAP_PX = 4;
 type TrendDays = (typeof TREND_DAYS_OPTIONS)[number];
 
 const summary = ref<AssetSummary | null>(null);
@@ -608,6 +618,14 @@ const trendRows = computed(() => {
     borrowAmtPercent: Math.max(0, Math.round(((r.borrow_amount ?? 0) / maxAmt) * 50)),
     returnAmtPercent: Math.max(0, Math.round(((r.return_amount ?? 0) / maxAmt) * 50)),
   }));
+});
+
+/** 数量曲线：至少铺满容器，数据点多时扩展宽度以支持横向滚动 */
+const trendQuantityChartWidth = computed(() => {
+  const n = trendRows.value.length;
+  if (n === 0) return "100%";
+  const contentPx = n * TREND_BAR_COLUMN_PX + Math.max(0, n - 1) * TREND_BAR_GAP_PX;
+  return `max(100%, ${contentPx}px)`;
 });
 
 onMounted(fetchAll);
