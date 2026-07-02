@@ -166,7 +166,7 @@
         <div class="rounded-lg border border-base-300 bg-base-100 p-5 shadow-card">
           <h2 class="mb-3 text-base font-medium text-base-content">借用凭证</h2>
           <div
-            v-if="borrow.status === 'APPROVED' && borrow.voucher_qr_payload"
+            v-if="hasVoucher"
             class="space-y-2 text-sm text-base-content/70"
           >
             <p class="text-xs text-base-content/50">凭证 payload（base64 编码，含 borrow_id / serial_no / approved_at）：</p>
@@ -229,7 +229,7 @@ import {
   returnBorrow,
 } from "@/modules/borrow/api";
 import type { BorrowRequest } from "@/modules/borrow/types";
-import { app } from "@/utils/cloudbase";
+import { resolveAssetImageTempUrls } from "@/modules/asset/storage";
 import { formatDate, formatDateTime, formatMoney } from "@/utils/format";
 import { CloudFunctionError } from "@/utils/http";
 
@@ -247,6 +247,13 @@ const rejectReason = ref("");
 const signatureUrl = ref<string | null>(null);
 const signatureLoading = ref(false);
 const signatureError = ref<string | null>(null);
+
+/** 审批通过或已归还后凭证 payload 仍保留，需继续展示 */
+const hasVoucher = computed(() => {
+  const b = borrow.value;
+  if (!b?.voucher_qr_payload?.trim()) return false;
+  return b.status === "APPROVED" || b.status === "RETURNED";
+});
 
 const reload = async () => {
   if (!id.value) return;
@@ -274,15 +281,20 @@ const resolveSignature = async (fileID: string) => {
   }
   signatureLoading.value = true;
   try {
-    const res = await app.getTempFileURL({ fileList: [fileID] });
-    const first = Array.isArray(res?.fileList) ? res.fileList[0] : null;
-    if (first && first.tempFileURL) {
-      signatureUrl.value = first.tempFileURL;
+    const urlMap = await resolveAssetImageTempUrls([fileID]);
+    const url = urlMap.get(fileID);
+    if (url) {
+      signatureUrl.value = url;
     } else {
       signatureError.value = "签名链接获取失败";
     }
   } catch (err) {
-    signatureError.value = err instanceof Error ? err.message : "签名加载失败";
+    signatureError.value =
+      err instanceof CloudFunctionError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : "签名加载失败";
   } finally {
     signatureLoading.value = false;
   }
