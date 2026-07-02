@@ -114,15 +114,37 @@ export interface ReturnResult {
 }
 
 /** Dashboard 看板聚合：与 cloudfunctions/borrow/actions/summary.js 对齐 */
+export interface InOutStatsBucket {
+  borrow_count: number;
+  return_count: number;
+  borrow_amount: number;
+  return_amount: number;
+}
+
+export interface BorrowTrendPoint {
+  date: string;
+  borrow: number;
+  return: number;
+  borrow_amount: number;
+  return_amount: number;
+}
+
 export interface BorrowSummary {
   pending_count: number;
   lent_count: number;
   today_borrow: number;
   today_return: number;
-  trend_7d: Array<{
-    /** 'YYYY-MM-DD' */
-    date: string;
-    borrow: number;
-    return: number;
-  }>;
+  trend_days?: number;
+  trend: BorrowTrendPoint[];
+  /** @deprecated 兼容旧字段，与 trend 相同 */
+  trend_7d: BorrowTrendPoint[];
+  inout_stats: {
+    today: InOutStatsBucket;
+    month: InOutStatsBucket;
+    total: InOutStatsBucket;
+  };
+}
+
+export interface BorrowSummaryInput {
+  days?: 7 | 30 | 90;
 }

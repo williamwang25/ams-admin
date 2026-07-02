@@ -366,7 +366,7 @@
 
 Dashboard 看板用，与 `asset.summary` 对齐风格。
 
-- **入参**：`{}`
+- **入参**：`{ days?: 7 | 30 | 90 }` — 趋势天数，默认 7
 - **副作用**：无
 - **成功返回**：
 
@@ -378,10 +378,27 @@ Dashboard 看板用，与 `asset.summary` 对齐风格。
     "lent_count": 12,             // 借出中数（资产维度，可由 asset.summary 提供，这里冗余便于一次拉取）
     "today_borrow": 2,            // 今日新增申请数
     "today_return": 1,            // 今日归还数
-    "trend_7d": [                 // 最近 7 天出入仓曲线
-      { "date": "2026-05-06", "borrow": 1, "return": 0 },
-      // ...
-    ]
+    "trend_days": 7,              // 实际趋势天数
+    "trend": [                    // 最近 N 天出入仓曲线（N = days）
+      {
+        "date": "2026-05-06",
+        "borrow": 1,
+        "return": 0,
+        "borrow_amount": 1060.0,
+        "return_amount": 0
+      }
+    ],
+    "trend_7d": [ /* 与 trend 相同，向后兼容 */ ],
+    "inout_stats": {
+      "today": {
+        "borrow_count": 2,
+        "return_count": 1,
+        "borrow_amount": 2000.0,
+        "return_amount": 1060.0
+      },
+      "month": { /* 同结构 */ },
+      "total": { /* 同结构 */ }
+    }
   }
 }
 ```
@@ -410,12 +427,14 @@ Dashboard 看板用，与 `asset.summary` 对齐风格。
 
 | action | 角色 | 说明 |
 |--------|------|------|
-| `create` | 管理员 | 发布通知 |
-| `update` | 管理员 | 修改通知 |
-| `publish` | 管理员 | 上下架 |
-| `delete` | 管理员 | 删除 |
+| `create` | 管理员 | 新建通知（默认未发布） |
+| `update` | 管理员 | 修改标题 / 内容 / 级别 |
+| `publish` | 管理员 | 上下架；入参 `{ id, published: boolean }` |
+| `delete` | 管理员 | 删除通知 |
+| `list` | 管理员 | 分页列表；支持 `published_only` / `published` / `level` / `keyword` |
+| `getDetail` | 管理员 | 单条详情 |
 
-> 一期列表读取走云函数；后期可考虑走 SDK 直连。
+> 集合 `ams_notice`；鉴权与其他业务云函数一致（`event.auth.token === ADMIN_PASSWORD`）。
 
 ### 4.2.7 `init`（一期已下线）
 

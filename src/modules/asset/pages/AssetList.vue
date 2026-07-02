@@ -5,10 +5,21 @@
         <h1 class="text-xl font-semibold text-base-content">资产列表</h1>
         <p class="text-xs text-base-content/50 mt-1">共 {{ total }} 条</p>
       </div>
-      <RouterLink to="/assets/new" class="btn btn-primary btn-sm">
-        <Plus :size="16" />
-        新增入库
-      </RouterLink>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm"
+          :disabled="exportLoading || loading || total === 0"
+          @click="handleExportCsv"
+        >
+          <Download :size="16" :class="exportLoading ? 'animate-pulse' : ''" />
+          {{ exportLoading ? "导出中..." : "导出 CSV" }}
+        </button>
+        <RouterLink to="/assets/new" class="btn btn-primary btn-sm">
+          <Plus :size="16" />
+          新增入库
+        </RouterLink>
+      </div>
     </header>
 
     <div class="rounded-lg border border-base-300 bg-base-100 p-4 shadow-card">
@@ -125,8 +136,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
-import { Image as ImageIcon, Plus } from "lucide-vue-next";
+import { Image as ImageIcon, Plus, Download } from "lucide-vue-next";
 import { listAssets } from "@/modules/asset/api";
+import { exportAssetsCsv } from "@/modules/asset/exportCsv";
 import type { Asset, AssetListFilter } from "@/modules/asset/types";
 import { resolveAssetImageTempUrls } from "@/modules/asset/storage";
 import StatusTag from "@/components/StatusTag.vue";
@@ -163,6 +175,7 @@ const list = ref<Asset[]>([]);
 const total = ref(0);
 const page = ref(1);
 const loading = ref(false);
+const exportLoading = ref(false);
 const error = ref<string | null>(null);
 const thumbnailUrls = ref<Record<string, string>>({});
 
@@ -241,6 +254,27 @@ const goPage = (n: number) => {
   if (n < 1 || n > totalPages.value) return;
   page.value = n;
   fetchPage();
+};
+
+const handleExportCsv = async () => {
+  if (exportLoading.value || total.value === 0) return;
+  exportLoading.value = true;
+  error.value = null;
+  try {
+    const count = await exportAssetsCsv({
+      filter: buildFilter(),
+      sort: { field: "created_at", order: "desc" },
+    });
+    if (count === 0) {
+      error.value = "当前筛选条件下没有可导出的资产";
+    }
+  } catch (err) {
+    if (err instanceof CloudFunctionError) error.value = err.message;
+    else if (err instanceof Error) error.value = err.message;
+    else error.value = "CSV 导出失败";
+  } finally {
+    exportLoading.value = false;
+  }
 };
 
 const route = useRoute();

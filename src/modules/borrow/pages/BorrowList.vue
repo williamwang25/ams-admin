@@ -127,7 +127,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { RouterLink } from "vue-router";
+import { RouterLink, useRoute } from "vue-router";
 import { RefreshCw } from "lucide-vue-next";
 import { adminListBorrows } from "@/modules/borrow/api";
 import type { AdminListInput, BorrowAdminListItem } from "@/modules/borrow/types";
@@ -154,6 +154,8 @@ const TABS: Array<{ value: TabValue; label: string }> = [
 ];
 
 const PAGE_SIZE = 20;
+
+const route = useRoute();
 
 const activeTab = ref<TabValue>("PENDING");
 const form = reactive<FilterForm>({ keyword: "", date_from: "", date_to: "" });
@@ -236,6 +238,14 @@ const earliestReturn = (row: BorrowAdminListItem): string => {
 };
 
 onMounted(() => {
+  const q = route.query;
+  const status = String(q.status ?? "");
+  if (status && TABS.some((t) => t.value === status)) {
+    activeTab.value = status as TabValue;
+  }
+  if (typeof q.keyword === "string") form.keyword = q.keyword;
+  if (typeof q.date_from === "string") form.date_from = q.date_from;
+  if (typeof q.date_to === "string") form.date_to = q.date_to;
   fetchPage();
 });
 </script>

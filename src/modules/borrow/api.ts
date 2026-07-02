@@ -14,6 +14,7 @@ import type {
   ApproveResult,
   BorrowRequest,
   BorrowSummary,
+  BorrowSummaryInput,
   RejectResult,
   ReturnResult,
 } from "@/modules/borrow/types";
@@ -38,5 +39,5 @@ export const rejectBorrow = (borrow_id: string, reject_reason: string) =>
 export const returnBorrow = (borrow_id: string) =>
   callFunction<ReturnResult>({ name: "borrow", action: "return", data: { borrow_id } });
 
-export const getBorrowSummary = () =>
-  callFunction<BorrowSummary>({ name: "borrow", action: "summary" });
+export const getBorrowSummary = (input: BorrowSummaryInput = {}) =>
+  callFunction<BorrowSummary>({ name: "borrow", action: "summary", data: input });

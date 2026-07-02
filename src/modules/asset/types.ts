@@ -203,6 +203,7 @@ export interface AssetDeptBucket {
   dept_name: string;
   count: number;
   value: number;
+  lent_count: number;
 }
 
 export interface AssetSummary {
@@ -210,6 +211,7 @@ export interface AssetSummary {
   total_value: number;
   large_count: number;
   large_value: number;
+  large_lent_count: number;
   by_status: AssetStatusBucket;
   by_dept: AssetDeptBucket[];
 }

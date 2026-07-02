@@ -14,16 +14,36 @@
       </div>
       <div class="flex items-center gap-2">
         <template v-if="asset">
-          <button class="btn btn-ghost btn-sm" :disabled="loading" @click="openModal = 'edit'">
+          <button
+            class="btn btn-ghost btn-sm"
+            :disabled="loading || !canMutate"
+            :title="mutateDisabledReason"
+            @click="openModal = 'edit'"
+          >
             <Pencil :size="14" /> 编辑
           </button>
-          <button class="btn btn-ghost btn-sm" :disabled="loading" @click="openModal = 'status'">
+          <button
+            class="btn btn-ghost btn-sm"
+            :disabled="loading || !canChangeStatus"
+            :title="statusDisabledReason"
+            @click="openModal = 'status'"
+          >
             变更状态
           </button>
-          <button class="btn btn-ghost btn-sm" :disabled="loading" @click="openModal = 'location'">
+          <button
+            class="btn btn-ghost btn-sm"
+            :disabled="loading || !canMutate"
+            :title="mutateDisabledReason"
+            @click="openModal = 'location'"
+          >
             变更位置
           </button>
-          <button class="btn btn-ghost btn-sm" :disabled="loading" @click="openModal = 'user'">
+          <button
+            class="btn btn-ghost btn-sm"
+            :disabled="loading || !canChangeUser"
+            :title="userDisabledReason"
+            @click="openModal = 'user'"
+          >
             变更使用人
           </button>
         </template>
@@ -44,6 +64,12 @@
         :class="{ 'tab-active': activeTab === 'timeline' }"
         @click="activeTab = 'timeline'"
       >生命周期 Timeline</a>
+      <a
+        role="tab"
+        class="tab"
+        :class="{ 'tab-active': activeTab === 'borrows' }"
+        @click="activeTab = 'borrows'"
+      >借用记录</a>
     </div>
 
     <div v-if="loading" class="rounded-lg border border-base-300 bg-base-100 p-6 shadow-card text-sm text-base-content/60">
@@ -109,6 +135,50 @@
       </ol>
     </div>
 
+    <!-- 借用记录 tab -->
+    <div
+      v-else-if="asset && activeTab === 'borrows'"
+      class="rounded-lg border border-base-300 bg-base-100 p-6 shadow-card overflow-x-auto"
+    >
+      <div v-if="borrowsLoading" class="text-sm text-base-content/60">
+        <span class="loading loading-spinner loading-sm" /> 加载中...
+      </div>
+      <div v-else-if="borrowRecords.length === 0" class="text-sm text-base-content/40 text-center py-10">
+        暂无借用记录
+      </div>
+      <table v-else class="table table-sm">
+        <thead>
+          <tr>
+            <th>流水号</th>
+            <th>教师</th>
+            <th>申请时间</th>
+            <th>数量</th>
+            <th>拟归还</th>
+            <th>状态</th>
+            <th class="text-right">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in borrowRecords" :key="row._id" class="hover">
+            <td class="font-mono text-xs">{{ row.serial_no }}</td>
+            <td>{{ row.teacher_name || "-" }}</td>
+            <td class="text-xs">{{ formatDateTime(row.created_at) }}</td>
+            <td>{{ borrowItemQty(row) }}</td>
+            <td class="text-xs">{{ borrowItemReturn(row) }}</td>
+            <td><StatusTag type="borrow" :status="row.status" /></td>
+            <td class="text-right">
+              <RouterLink
+                :to="{ name: 'borrow-detail', params: { id: row._id } }"
+                class="btn btn-ghost btn-xs"
+              >
+                详情
+              </RouterLink>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
     <EditAssetModal
       v-if="asset && openModal === 'edit'"
       :asset="asset"
@@ -142,6 +212,8 @@ import { useRoute, RouterLink } from "vue-router";
 import { Pencil } from "lucide-vue-next";
 import { getAssetDetail, getAssetTimeline } from "@/modules/asset/api";
 import type { Asset, AssetLog } from "@/modules/asset/types";
+import { adminListBorrows } from "@/modules/borrow/api";
+import type { BorrowAdminListItem } from "@/modules/borrow/types";
 import StatusTag from "@/components/StatusTag.vue";
 import EditAssetModal from "@/modules/asset/components/EditAssetModal.vue";
 import AssetImageGallery from "@/modules/asset/components/AssetImageGallery.vue";
@@ -159,10 +231,42 @@ const id = computed(() => String(route.params.id ?? ""));
 
 const asset = ref<Asset | null>(null);
 const timeline = ref<AssetLog[]>([]);
+const borrowRecords = ref<BorrowAdminListItem[]>([]);
 const loading = ref(false);
 const timelineLoading = ref(false);
+const borrowsLoading = ref(false);
 const error = ref<string | null>(null);
-const activeTab = ref<"detail" | "timeline">("detail");
+const activeTab = ref<"detail" | "timeline" | "borrows">("detail");
+
+const canMutate = computed(() => {
+  const s = asset.value?.business_status;
+  return s !== "LENT" && s !== "PENDING" && s !== "SCRAPPED";
+});
+
+const canChangeUser = computed(() => {
+  const s = asset.value?.business_status;
+  return s !== "LENT" && s !== "PENDING";
+});
+
+const canChangeStatus = computed(() => asset.value?.business_status !== "SCRAPPED");
+
+const mutateDisabledReason = computed(() => {
+  const s = asset.value?.business_status;
+  if (s === "SCRAPPED") return "已报废资产不可编辑";
+  if (s === "LENT" || s === "PENDING") return "借出/审批中资产不可编辑，请走借还流程";
+  return "";
+});
+
+const userDisabledReason = computed(() => {
+  const s = asset.value?.business_status;
+  if (s === "LENT" || s === "PENDING") return "借出/审批中不可变更使用人";
+  return mutateDisabledReason.value;
+});
+
+const statusDisabledReason = computed(() => {
+  if (asset.value?.business_status === "SCRAPPED") return "已报废为终态";
+  return "";
+});
 
 type FieldType = "text" | "money" | "date" | "boolean";
 interface FieldDef {
@@ -305,7 +409,43 @@ const fetchTimeline = async () => {
 
 watch(activeTab, (tab) => {
   if (tab === "timeline" && timeline.value.length === 0) fetchTimeline();
+  if (tab === "borrows" && borrowRecords.value.length === 0) fetchBorrowRecords();
 });
+
+const fetchBorrowRecords = async () => {
+  if (!asset.value) return;
+  borrowsLoading.value = true;
+  try {
+    const res = await adminListBorrows({
+      keyword: asset.value.asset_no,
+      page: 1,
+      pageSize: 50,
+    });
+    const aid = asset.value._id;
+    borrowRecords.value = res.list.filter((row) =>
+      row.items.some((it) => it.asset_id === aid),
+    );
+  } catch (err) {
+    console.error("[asset detail] borrows error:", err);
+    borrowRecords.value = [];
+  } finally {
+    borrowsLoading.value = false;
+  }
+};
+
+const borrowItemQty = (row: BorrowAdminListItem): number => {
+  const aid = asset.value?._id;
+  if (!aid) return 0;
+  const item = row.items.find((it) => it.asset_id === aid);
+  return item?.quantity ?? 1;
+};
+
+const borrowItemReturn = (row: BorrowAdminListItem): string => {
+  const aid = asset.value?._id;
+  if (!aid) return "-";
+  const item = row.items.find((it) => it.asset_id === aid);
+  return item?.expected_return_date ? formatDate(item.expected_return_date) : "-";
+};
 
 /**
  * 任意变更 modal 成功后：关弹窗、重拉详情、清空 timeline 缓存。
